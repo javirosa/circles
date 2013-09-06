@@ -1,0 +1,43 @@
+For scale mapping.
+http://msdn.microsoft.com/en-us/library/bb259689.aspx
+http://webhelp.esri.com/arcgisserver/9.3/java/index.htm#designing_overlay_gm_mve.htm
+http://gis.stackexchange.com/questions/7430/google-maps-zoom-level-ratio
+
+On scales:
+http://en.wikipedia.org/wiki/Tissot%27s_indicatrix
+http://en.wikipedia.org/wiki/Mercator_projection
+
+Drawing
+http://www.imagemagick.org/Usage/draw/#primitives
+http://www.imagemagick.org/Usage/text/#draw
+
+It turns out that a Mercator projection is being used which thankfully only distorts area and not shape. At the equator the distortion is pretty small.
+
+sec(2*pi*1/360)~=1.0001 so at a kilometer we'll be short or long by a decimeter or so, which is significamnly smaller than the size of a house.
+
+
+FIREFOX PLUGIN
+Fireshot since it allows for keyboard shortcuts
+Ensure that the default action is to take the entire page and save it to disk.
+
+AUTOIT
+For each url
+Wait 20 seconds. 
+Screen capture C-S-A-Z
+Wait 5 seconds
+Rename to idname
+
+FOR EACH FILE:
+Call imagemagick and add circle and text
+
+
+Create imagemagick command to add circle and text to file.
+Automate this process
+
+Notes
+No id1105
+
+#for each png file with name id.png
+#get the label from the table with row id
+#call imagemagick with the below command
+convert -size 4008x4016  -font Arial -pointsize 100 -fill white -strokewidth 1 -stroke black -bordercolor black -draw "text 100,100 'work'" -fill #00F8 -strokewidth 10 -stroke green -bordercolor green -draw "circle 2004,2008 1504,2008" png:id1101.png id1101what.png
