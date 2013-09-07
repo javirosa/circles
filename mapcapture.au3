@@ -36,7 +36,7 @@ if WinExists("Confirm Save As") Then
 	Send("!y")
 EndIf
 
-Sleep(10000) ;Wait for save to complete
+;Sleep(10000) ;Wait for save to complete
 
 ;Sleep(1000)
 ;WinClose($browser)

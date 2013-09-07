@@ -8,6 +8,9 @@ import csv
 import sys
 import math
 import subprocess
+import time
+
+NTHREADS=4
 
 STROKEWIDTH = 2000
 AUTOITPATH = "C:\Program Files (x86)\AutoIt3\AutoIt3.exe"
@@ -62,6 +65,7 @@ def main():
         reader = csv.reader(f)
         try:
             headers = reader.next()
+            toLabel = []
             for row in reader:
                 name = row[headers.index('name')]
                 lat = row[headers.index('lat')]
@@ -84,13 +88,28 @@ def main():
                 autoitcall = AUTOITPATH + " mapcapture.au3 file://{0} {1}".format(outputhtmlabs,outputpng)
                 #print(autoitcall)
                 subprocess.call(autoitcall)
+                toLabel.append((id,outputpng,lat))
+
+            time.sleep(10) #Make sure the last file has been written to disk
+            threads = []
+            for id,outputpng,lat in toLabel:
+                while len(threads) >= NTHREADS:
+                    for thread in threads:
+                        thread.poll()
+                    threads = [thread for thread in threads if thread.returncode != None]
+                    time.sleep(.100)
+
                 #call imagemagick to annotate the file
                 if os.path.exists(outputpng):
                     edgecoord = 8+4000/2+STROKEWIDTH/2+metersToPixels(600,float(lat),19) 
-		    #image is offset with capture + width/2 + stroke is on center of edge + radius
+                    #image is offset with capture + width/2 + stroke is on center of edge + radius
                     outfile = os.path.join(args.outputdir,'id{0}labeled.png'.format(id))
                     magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format(label,outputpng,outfile,STROKEWIDTH,edgecoord)
-                    subprocess.call(magiccall)
+                    thread = subprocess.Popen(magiccall)
+                    threads.append(thread)
+            for thread in threads:
+                thread.wait()
+
         except csv.Error as e:
             sys.exit('file %s, line %d: %s' % (args.input, reader.line_num, e))
 
