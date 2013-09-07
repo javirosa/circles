@@ -12,7 +12,9 @@ AutoItSetOption("WinTitleMatchMode",2)
 
 ;WinActivate($browser)
 Sleep(10000) ;loading image
-$browser = WinGetHandle("[Active]")
+$browser = WinGetHandle("[CLASS:MozillaWindowClass]")
+WinActivate($browser)
+WinActivate($browser)
 
 Send("{ALTDOWN}{CTRLDOWN}+z") ;Save screenshot command
 Send("{ALTUP}{CTRLUP}")
@@ -34,7 +36,7 @@ if WinExists("Confirm Save As") Then
 	Send("!y")
 EndIf
 
-Sleep(5000) ;Wait for save to complete
+Sleep(10000) ;Wait for save to complete
 
 ;Sleep(1000)
 ;WinClose($browser)
