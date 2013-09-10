@@ -18,7 +18,7 @@ WinActivate($browser)
 
 Send("{ALTDOWN}{CTRLDOWN}+z") ;Save screenshot command
 Send("{ALTUP}{CTRLUP}")
-Sleep(10000)  ;Wait to render
+Sleep(15000)  ;Wait to render
 
 ;Change dialog box save location
 $savebox = WinGetHandle("Save Screenshot...")

@@ -11,12 +11,13 @@ import subprocess
 import time
 
 NTHREADS=4
+RADIUS = 600 #in meters
 
 STROKEWIDTH = 2000
 AUTOITPATH = "C:\Program Files (x86)\AutoIt3\AutoIt3.exe"
 IMAGEMAGICKPATH = "C:\Program Files (x86)\ImageMagick-6.8.6-Q16\convert.exe"
 IMTEXT = " -font Arial -pointsize 100 -fill white -strokewidth 1 -stroke black -draw \"text 100,100 \'{0}\'\" "
-IMCIRCLE = " -fill none -strokewidth {3} -stroke #4004 -draw \"circle 2008,2008 {4},2008\" " #2016 because we actually have a 4000x4000 image and it's offset by 8 and 16
+IMCIRCLE = " -fill none -strokewidth {3} -stroke #4004 -draw \"circle 2008,2008 {4},2006\" " #2016 because we actually have a 4000x4000 image and it's offset by 8 and 16
 IMAGEMAGICKARGS = "-size 4008x4016" + IMCIRCLE + IMTEXT + "{1} {2}"
 
 #w/2+strokewidth/2+r
@@ -83,11 +84,11 @@ def main():
                     print('<iframe width="{2}" height="{2}" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?f=q&amp;source=s_q&amp;hl=en&amp;geocode=&amp;q={0},{1}&amp;aq=&amp;sll={0},{1}&amp;sspn=0.002789,0.003664&amp;t=h&amp;ie=UTF8&amp;z=19&amp;ll={0},{1}&amp;output=embed"></iframe>'.format(lat,long,args.pixels),file=out)
                 print('{0}'.format(outputhtml),file=lst)
 
-                #call autoit script on the url
                 outputpng = os.path.abspath(os.path.join(args.outputdir,'{0}.png'.format(outputprefix)))
-                autoitcall = AUTOITPATH + " mapcapture.au3 file://{0} {1}".format(outputhtmlabs,outputpng)
-                #print(autoitcall)
-                subprocess.call(autoitcall)
+                if not os.path.exists(outputpng):
+                    #call autoit script on the url
+                    autoitcall = AUTOITPATH + " mapcapture.au3 file://{0} {1}".format(outputhtmlabs,outputpng)
+                    subprocess.call(autoitcall)
                 toLabel.append((id,outputpng,lat))
 
             time.sleep(10) #Make sure the last file has been written to disk
@@ -101,8 +102,12 @@ def main():
 
                 #call imagemagick to annotate the file
                 if os.path.exists(outputpng):
-                    edgecoord = 8+4000/2+STROKEWIDTH/2+metersToPixels(600,float(lat),19) 
-                    #image is offset with capture + width/2 + stroke is on center of edge + radius
+		    #offset by 8 because the image isn't in the center
+		    #offset by 4000/2 becasue we want to have the circle in the center
+                    #we are actually using the stroke to create the outline 
+		    #so we offset the radius by the strokewidth/2 since 
+		    #the stroke is actually put on the center of the perimeter
+                    edgecoord = 8+4000/2+STROKEWIDTH/2+metersToPixels(RADIUS,float(lat),19) 
                     outfile = os.path.join(args.outputdir,'id{0}labeled.png'.format(id))
                     magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format(label,outputpng,outfile,STROKEWIDTH,edgecoord)
                     thread = subprocess.Popen(magiccall)

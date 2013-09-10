@@ -41,3 +41,6 @@ No id1105
 #get the label from the table with row id
 #call imagemagick with the below command
 convert -size 4008x4016  -font Arial -pointsize 100 -fill white -strokewidth 1 -stroke black -bordercolor black -draw "text 100,100 'work'" -fill #00F8 -strokewidth 10 -stroke green -bordercolor green -draw "circle 2004,2008 1504,2008" png:id1101.png id1101what.png
+
+
+Remove the ll and sll sspn
