@@ -10,13 +10,12 @@ import math
 import subprocess
 import time
 
+#NOTE that pixels isn't parameterized in the imagemagick code
 NTHREADS=4
-RADIUS = 600 #in meters
 
-STROKEWIDTH = 2000
 AUTOITPATH = "C:\Program Files (x86)\AutoIt3\AutoIt3.exe"
 IMAGEMAGICKPATH = "C:\Program Files (x86)\ImageMagick-6.8.6-Q16\convert.exe"
-IMTEXT = " -font Arial -pointsize 100 -fill white -strokewidth 1 -stroke black -draw \"text 100,100 \'{0}\'\" "
+IMTEXT = " -font Arial -pointsize 256 -fill white -strokewidth 1 -stroke black -draw \"text 0,256 \'{0}\'\" "
 IMCIRCLE = " -fill none -strokewidth {3} -stroke #4004 -draw \"circle 2008,2008 {4},2006\" " #2016 because we actually have a 4000x4000 image and it's offset by 8 and 16
 IMAGEMAGICKARGS = "-size 4008x4016" + IMCIRCLE + IMTEXT + "{1} {2}"
 
@@ -48,7 +47,8 @@ def main():
                         default=os.getcwd(),required=False)
     parser.add_argument('-p','--pixels',help='# of pixels for iframe (in each dimension)',
                         default=4000, required=False);
-    parser.add_argument('-a','--annotate',help='add label and radius markings to images.')
+    parser.add_argument('-r','--radius',default=650,help='radius in meters of circle.')
+    parser.add_argument('-l','--level',default=19,help='google maps zoom level')
 
     args = parser.parse_args()
 
@@ -81,7 +81,7 @@ def main():
                 with open(outputhtmlabs,'w') as out:
                     # write the HTML:
                     # print('ID: {0} Name: {1}\n'.format(id,name),file=out)
-                    print('<iframe width="{2}" height="{2}" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?f=q&amp;source=s_q&amp;hl=en&amp;geocode=&amp;q={0},{1}&amp;aq=&amp;sll={0},{1}&amp;sspn=0.002789,0.003664&amp;t=h&amp;ie=UTF8&amp;z=19&amp;ll={0},{1}&amp;output=embed"></iframe>'.format(lat,long,args.pixels),file=out)
+                    print('<iframe width="{2}" height="{2}" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?f=q&amp;source=s_q&amp;hl=en&amp;geocode=&amp;q={0},{1}&amp;aq=&amp;sll={0},{1}&amp;sspn=0.002789,0.003664&amp;t=h&amp;ie=UTF8&amp;z={3}&amp;ll={0},{1}&amp;output=embed"></iframe>'.format(lat,long,args.pixels,int(args.level)),file=out)
                 print('{0}'.format(outputhtml),file=lst)
 
                 outputpng = os.path.abspath(os.path.join(args.outputdir,'{0}.png'.format(outputprefix)))
@@ -107,9 +107,9 @@ def main():
                     #we are actually using the stroke to create the outline 
 		    #so we offset the radius by the strokewidth/2 since 
 		    #the stroke is actually put on the center of the perimeter
-                    edgecoord = 8+4000/2+STROKEWIDTH/2+metersToPixels(RADIUS,float(lat),19) 
+                    edgecoord = 8+2000/2+int(args.pixels)/2+metersToPixels(int(args.radius),float(lat),int(args.level)) 
                     outfile = os.path.join(args.outputdir,'id{0}labeled.png'.format(id))
-                    magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format(label,outputpng,outfile,STROKEWIDTH,edgecoord)
+                    magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format(label,outputpng,outfile,int(args.pixels),edgecoord)
                     thread = subprocess.Popen(magiccall)
                     threads.append(thread)
             for thread in threads:

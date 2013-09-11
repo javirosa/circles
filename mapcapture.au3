@@ -11,14 +11,14 @@ ShellExecute($url)
 AutoItSetOption("WinTitleMatchMode",2)
 
 ;WinActivate($browser)
-Sleep(10000) ;loading image
+Sleep(30000) ;loading image
 $browser = WinGetHandle("[CLASS:MozillaWindowClass]")
 WinActivate($browser)
 WinActivate($browser)
 
 Send("{ALTDOWN}{CTRLDOWN}+z") ;Save screenshot command
 Send("{ALTUP}{CTRLUP}")
-Sleep(15000)  ;Wait to render
+Sleep(10000)  ;Wait to render
 
 ;Change dialog box save location
 $savebox = WinGetHandle("Save Screenshot...")
