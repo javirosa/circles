@@ -109,7 +109,7 @@ def main():
 		    #the stroke is actually put on the center of the perimeter
                     edgecoord = 8+2000/2+int(args.pixels)/2+metersToPixels(int(args.radius),float(lat),int(args.level)) 
                     outfile = os.path.join(args.outputdir,'id{0}labeled.png'.format(id))
-                    magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format(label,outputpng,outfile,int(args.pixels),edgecoord)
+                    magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format(label,outputpng,outfile,2000,edgecoord)
                     thread = subprocess.Popen(magiccall)
                     threads.append(thread)
             for thread in threads:
