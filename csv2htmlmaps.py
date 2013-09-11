@@ -107,9 +107,10 @@ def main():
                     #we are actually using the stroke to create the outline 
 		    #so we offset the radius by the strokewidth/2 since 
 		    #the stroke is actually put on the center of the perimeter
-                    edgecoord = 8+2000/2+int(args.pixels)/2+metersToPixels(int(args.radius),float(lat),int(args.level)) 
+                    edgecoord = 8+int(args.pixels)/2+2000/2+metersToPixels(int(args.radius),float(lat),int(args.level)) 
                     outfile = os.path.join(args.outputdir,'id{0}labeled.png'.format(id))
                     magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format(label,outputpng,outfile,2000,edgecoord)
+		    print(magiccall)
                     thread = subprocess.Popen(magiccall)
                     threads.append(thread)
             for thread in threads:
