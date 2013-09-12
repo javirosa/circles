@@ -16,7 +16,7 @@ NTHREADS=4
 RENDEROFFSETX = 8
 RENDEROFFSETY = 8
 
-IMTEXT = " -font Arial -pointsize 256 -fill white -strokewidth 1 -stroke black -draw \"text 0,256 \'{0[label]}\'\" "
+IMTEXT = " -extent 0x{0[withtextbottom]} -font Arial -pointsize 256 -fill black -strokewidth 1 -stroke black -draw \"text 0,{0[mapbottom]} \'{0[label]}\'\" "
 IMCIRCLE = " -fill none -strokewidth {0[strokewidth]} -stroke #4004 -draw \"circle {0[centerX]},{0[centerY]} {0[perimeterX]},{0[centerY]}\" " 
 IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "\"{0[inname]}\" \"{0[outname]}\""
 #Removed "-size 4008x4016"
@@ -104,7 +104,7 @@ def main():
                 while len(threads) >= NTHREADS:
                     for thread in threads:
                         thread.poll()
-                    threads = [thread for thread in threads if thread.returncode != None]
+                    threads = [thread for thread in threads if thread.returncode == None]
                     time.sleep(.100)
 
                 #call imagemagick to annotate the file
@@ -122,7 +122,7 @@ def main():
                     centerX = RENDEROFFSETX + int(pixels)/2
                     centerY = RENDEROFFSETY + int(pixels)/2
                     labeledpng = os.path.join(args.outputdir,'id{0}-{1}-labeled.png'.format(id,label))
-                    magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':label,'inname':outputpng,'outname':labeledpng,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY})
+		    magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':label,'inname':outputpng,'outname':labeledpng,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
                     print(magiccall)
                     thread = subprocess.Popen(magiccall)
                     threads.append(thread)
