@@ -51,6 +51,7 @@ def main():
                         default=4000, required=False);
     parser.add_argument('-r','--radius',default=650,help='radius in meters of circle.')
     parser.add_argument('-l','--level',default=19,help='google maps zoom level')
+    parser.add_argument('-s','--skip',default='True',help='skip downloading maps.')
 
     args = parser.parse_args()
 
@@ -91,7 +92,7 @@ def main():
                 print('{0}'.format(outputhtml),file=lst)
 
                 outputpng = os.path.abspath(os.path.join(args.outputdir,'{0}.png'.format(outputprefix)))
-                if not os.path.exists(outputpng):
+                if (args.skip == 'False') or (not os.path.exists(outputpng)):
                     #call autoit script on the url
                     autoitcall = AUTOITPATH + " mapcapture.au3 file://{0} {1}".format(outputhtmlabs,outputpng)
                     subprocess.call(autoitcall)
