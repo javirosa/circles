@@ -10,14 +10,16 @@ import math
 import subprocess
 import time
 
-#NOTE that pixels isn't parameterized in the imagemagick code
-NTHREADS=4
-
 AUTOITPATH = "C:\Program Files (x86)\AutoIt3\AutoIt3.exe"
 IMAGEMAGICKPATH = "C:\Program Files (x86)\ImageMagick-6.8.6-Q16\convert.exe"
-IMTEXT = " -font Arial -pointsize 256 -fill white -strokewidth 1 -stroke black -draw \"text 0,256 \'{0}\'\" "
-IMCIRCLE = " -fill none -strokewidth {3} -stroke #4004 -draw \"circle 2008,2008 {4},2006\" " #2016 because we actually have a 4000x4000 image and it's offset by 8 and 16
-IMAGEMAGICKARGS = "-size 4008x4016" + IMCIRCLE + IMTEXT + "{1} {2}"
+NTHREADS=4
+RENDEROFFSETX = 8
+RENDEROFFSETY = 8
+
+IMTEXT = " -font Arial -pointsize 256 -fill white -strokewidth 1 -stroke black -draw \"text 0,256 \'{0[label]}\'\" "
+IMCIRCLE = " -fill none -strokewidth {0[strokewidth]} -stroke #4004 -draw \"circle {0[centerX]},{0[centerY]} {0[perimeterX]},{0[centerY]}\" " 
+IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "{0[inname]} {0[outname]}"
+#Removed "-size 4008x4016"
 
 #w/2+strokewidth/2+r
 #the above requires a label infile and outfile to be present in the format dictionary. TODO: fix the radius and do the caluclaton for it
@@ -45,7 +47,7 @@ def main():
     parser.add_argument('-o','--outputdir',
                         help='Output directory (will create if does not exist)',
                         default=os.getcwd(),required=False)
-    parser.add_argument('-p','--pixels',help='# of pixels for iframe (in each dimension)',
+    parser.add_argument('-p','--pixels',help='# of pixels for iframe (in each dimension). Use \'X\' if you would like the dimensions to match the radius.',
                         default=4000, required=False);
     parser.add_argument('-r','--radius',default=650,help='radius in meters of circle.')
     parser.add_argument('-l','--level',default=19,help='google maps zoom level')
@@ -79,9 +81,13 @@ def main():
                 outputhtml = '{0}.html'.format(outputprefix)
                 outputhtmlabs = os.path.abspath(os.path.join(args.outputdir,outputhtml))
                 with open(outputhtmlabs,'w') as out:
+                    if args.pixels == 'X':
+                         pixels = str(2*int(metersToPixels(int(args.radius),float(lat),int(args.level))))
+                    else:
+                         pixels = args.pixels
                     # write the HTML:
                     # print('ID: {0} Name: {1}\n'.format(id,name),file=out)
-                    print('<iframe width="{2}" height="{2}" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?f=q&amp;source=s_q&amp;hl=en&amp;geocode=&amp;q={0},{1}&amp;aq=&amp;sll={0},{1}&amp;sspn=0.002789,0.003664&amp;t=h&amp;ie=UTF8&amp;z={3}&amp;ll={0},{1}&amp;output=embed"></iframe>'.format(lat,long,args.pixels,int(args.level)),file=out)
+                    print('<iframe width="{2}" height="{2}" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?f=q&amp;source=s_q&amp;hl=en&amp;geocode=&amp;q={0},{1}&amp;aq=&amp;sll={0},{1}&amp;sspn=0.002789,0.003664&amp;t=h&amp;ie=UTF8&amp;z={3}&amp;ll={0},{1}&amp;output=embed"></iframe>'.format(lat,long,pixels,int(args.level)),file=out)
                 print('{0}'.format(outputhtml),file=lst)
 
                 outputpng = os.path.abspath(os.path.join(args.outputdir,'{0}.png'.format(outputprefix)))
@@ -102,15 +108,21 @@ def main():
 
                 #call imagemagick to annotate the file
                 if os.path.exists(outputpng):
-		    #offset by 8 because the image isn't in the center
-		    #offset by 4000/2 becasue we want to have the circle in the center
+                    if args.pixels == 'X':
+                         pixels = str(2*int(metersToPixels(int(args.radius),float(lat),int(args.level))))
+                    else:
+                         pixels = args.pixels
+                    #offset by 8 because the image isn't in the center
+                    #offset by 4000/2 becasue we want to have the circle in the center
                     #we are actually using the stroke to create the outline 
-		    #so we offset the radius by the strokewidth/2 since 
-		    #the stroke is actually put on the center of the perimeter
-                    edgecoord = 8+int(args.pixels)/2+2000/2+metersToPixels(int(args.radius),float(lat),int(args.level)) 
-                    outfile = os.path.join(args.outputdir,'id{0}labeled.png'.format(id))
-                    magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format(label,outputpng,outfile,2000,edgecoord)
-		    print(magiccall)
+                    #so we offset the radius by the strokewidth/2 since 
+                    #the stroke is actually put on the center of the perimeter
+                    perimeterX = RENDEROFFSETX+int(pixels)/2+int(pixels)/2+metersToPixels(int(args.radius),float(lat),int(args.level)) 
+                    centerX = RENDEROFFSETX + int(pixels)/2
+                    centerY = RENDEROFFSETY + int(pixels)/2
+                    labeledpng = os.path.join(args.outputdir,'id{0}labeled.png'.format(id))
+                    magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':label,'inname':outputpng,'outname':labeledpng,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY})
+                    print(magiccall)
                     thread = subprocess.Popen(magiccall)
                     threads.append(thread)
             for thread in threads:
