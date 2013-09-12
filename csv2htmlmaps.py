@@ -18,7 +18,7 @@ RENDEROFFSETY = 8
 
 IMTEXT = " -font Arial -pointsize 256 -fill white -strokewidth 1 -stroke black -draw \"text 0,256 \'{0[label]}\'\" "
 IMCIRCLE = " -fill none -strokewidth {0[strokewidth]} -stroke #4004 -draw \"circle {0[centerX]},{0[centerY]} {0[perimeterX]},{0[centerY]}\" " 
-IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "{0[inname]} {0[outname]}"
+IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "\"{0[inname]}\" \"{0[outname]}\""
 #Removed "-size 4008x4016"
 
 #w/2+strokewidth/2+r
@@ -91,16 +91,16 @@ def main():
                     print('<iframe width="{2}" height="{2}" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?f=q&amp;source=s_q&amp;hl=en&amp;geocode=&amp;q={0},{1}&amp;aq=&amp;sll={0},{1}&amp;sspn=0.002789,0.003664&amp;t=h&amp;ie=UTF8&amp;z={3}&amp;ll={0},{1}&amp;output=embed"></iframe>'.format(lat,long,pixels,int(args.level)),file=out)
                 print('{0}'.format(outputhtml),file=lst)
 
-                outputpng = os.path.abspath(os.path.join(args.outputdir,'{0}.png'.format(outputprefix)))
+                outputpng = os.path.abspath(os.path.join(args.outputdir,'{0}-{1}.png'.format(outputprefix,label)))
                 if (args.skip == 'False') or (not os.path.exists(outputpng)):
                     #call autoit script on the url
-                    autoitcall = AUTOITPATH + " mapcapture.au3 file://{0} {1}".format(outputhtmlabs,outputpng)
+                    autoitcall = AUTOITPATH + " mapcapture.au3 \"file://{0}\" \"{1}\"".format(outputhtmlabs,outputpng)
                     subprocess.call(autoitcall)
-                toLabel.append((id,outputpng,lat))
+                toLabel.append((id,label,outputpng,lat))
 
             time.sleep(10) #Make sure the last file has been written to disk
             threads = []
-            for id,outputpng,lat in toLabel:
+            for id,label,outputpng,lat in toLabel:
                 while len(threads) >= NTHREADS:
                     for thread in threads:
                         thread.poll()
@@ -121,7 +121,7 @@ def main():
                     perimeterX = RENDEROFFSETX+int(pixels)/2+int(pixels)/2+metersToPixels(int(args.radius),float(lat),int(args.level)) 
                     centerX = RENDEROFFSETX + int(pixels)/2
                     centerY = RENDEROFFSETY + int(pixels)/2
-                    labeledpng = os.path.join(args.outputdir,'id{0}labeled.png'.format(id))
+                    labeledpng = os.path.join(args.outputdir,'id{0}-{1}-labeled.png'.format(id,label))
                     magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':label,'inname':outputpng,'outname':labeledpng,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY})
                     print(magiccall)
                     thread = subprocess.Popen(magiccall)
