@@ -18,7 +18,7 @@ RENDEROFFSETY = 8
 
 IMTEXT = " -extent 0x{0[withtextbottom]} -font Arial -pointsize 256 -fill black -strokewidth 1 -stroke black -draw \"text 0,{0[mapbottom]} \'{0[label]}\'\" "
 IMCIRCLE = " -fill none -strokewidth {0[strokewidth]} -stroke #4004 -draw \"circle {0[centerX]},{0[centerY]} {0[perimeterX]},{0[centerY]}\" " 
-IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "\"{0[inname]}\" \"{0[outname]}\""
+IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "\"{0[inname]}\" \"{0[outname]}\" "
 #Removed "-size 4008x4016"
 
 #w/2+strokewidth/2+r
@@ -48,10 +48,11 @@ def main():
                         help='Output directory (will create if does not exist)',
                         default=os.getcwd(),required=False)
     parser.add_argument('-p','--pixels',help='# of pixels for iframe (in each dimension). Use \'X\' if you would like the dimensions to match the radius.',
-                        default=4000, required=False);
+                        default='X', required=False);
     parser.add_argument('-r','--radius',default=650,help='radius in meters of circle.')
     parser.add_argument('-l','--level',default=19,help='google maps zoom level')
     parser.add_argument('-s','--skip',default='True',help='skip downloading maps.')
+    parser.add_argument('-f','--format',default='jpg',help='output format.')
 
     args = parser.parse_args()
 
@@ -121,7 +122,7 @@ def main():
                     perimeterX = RENDEROFFSETX+int(pixels)/2+int(pixels)/2+metersToPixels(int(args.radius),float(lat),int(args.level)) 
                     centerX = RENDEROFFSETX + int(pixels)/2
                     centerY = RENDEROFFSETY + int(pixels)/2
-                    labeledpng = os.path.join(args.outputdir,'id{0}-{1}-labeled.png'.format(id,label))
+                    labeledpng = os.path.join(args.outputdir,'id{0}-{1}-labeled.{2}'.format(id,label,args.format))
 		    magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':label,'inname':outputpng,'outname':labeledpng,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
                     print(magiccall)
                     thread = subprocess.Popen(magiccall)
