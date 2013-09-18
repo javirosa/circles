@@ -66,7 +66,6 @@ class Capturer(object):
         self.wb.mainFrame().load(QtCore.QUrl(self.url))
 
     def doCapture(self):
-        print "Capturando"
         self.wb.setViewportSize(self.wb.mainFrame().contentsSize())
         img = QtGui.QImage(self.wb.viewportSize(), QtGui.QImage.Format_ARGB32)
         print self.wb.viewportSize()

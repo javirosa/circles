@@ -9,6 +9,8 @@ import sys
 import math
 import subprocess
 import time
+from PyQt4 import QtCore, QtGui, QtWebKit
+import capty
 
 AUTOITPATH = "C:\Program Files (x86)\AutoIt3\AutoIt3.exe"
 IMAGEMAGICKPATH = "C:\Program Files (x86)\ImageMagick-6.8.6-Q16\convert.exe"
@@ -17,7 +19,7 @@ RENDEROFFSETX = 8
 RENDEROFFSETY = 8
 
 IMTEXT = " -extent 0x{0[withtextbottom]} -font Arial -pointsize 256 -fill black -strokewidth 1 -stroke black -draw \"text 0,{0[mapbottom]} \'{0[label]}\'\" "
-IMPARMTEXT = "  -font Arial -pointsize 24 -fill black -strokewidth 1 -stroke black -draw \"text 0,{0[mapbottom]} \'{0[label]}\'\" "
+#IMPARMTEXT = "  -font Arial -pointsize 24 -fill black -strokewidth 1 -stroke black -draw \"text 0,{0[mapbottom]} \'{0[label]}\'\" "
 IMCIRCLE = " -fill none -strokewidth {0[strokewidth]} -stroke #4004 -draw \"circle {0[centerX]},{0[centerY]} {0[perimeterX]},{0[centerY]}\" " 
 IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "\"{0[inname]}\" \"{0[outname]}\""
 #Removed "-size 4008x4016"
@@ -27,6 +29,9 @@ IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "\"{0[inname]}\" \"{0[outname]}\""
 
 #Ref: http://msdn.microsoft.com/en-us/library/bb259689.aspx
 #2009
+#For capturepage
+app = QtGui.QApplication(sys.argv) 
+
 def metersToPixels(meters,lat,level):
     n = math.cos(lat*math.pi/180)*2*math.pi*6378137
     d = 256*2**level
@@ -42,10 +47,10 @@ def make_sure_path_exists(path):
             raise
 
 def capturePage(url,outfile):
-    #call autoit script on the url
-    autoitcall = AUTOITPATH + " mapcapture.au3 \"file://{0}\" \"{1}\"".format(url,outfile)
-    subprocess.call(autoitcall)
-    
+    c = capty.Capturer(url, outfile)
+    c.capture()
+    app.exec_()
+        
 def main():
     #print("pxs:{0}".format(metersToPixels(600,0.01,19)))
     parser = argparse.ArgumentParser(description='Script to take coordinates from a CSV input file and output a series of Google Maps HTML files centered on those coordinates')
@@ -57,7 +62,7 @@ def main():
                         default='X', required=False);
     parser.add_argument('-r','--radius',default=650,help='radius in meters of circle.')
     parser.add_argument('-l','--level',default=19,help='google maps zoom level')
-    parser.add_argument('-s','--skip',default='True',help='skip downloading maps.')
+    parser.add_argument('-s','--skip',default='False',help='skip downloading maps.')
 
     args = parser.parse_args()
 
@@ -69,8 +74,8 @@ def main():
     # (should really test if its writeable too)
     make_sure_path_exists(args.outputdir);
 
-    # now read the csv file
 
+    # now read the csv file
     with open(args.input, 'rUb') as f, open(os.path.join(args.outputdir,'listing.csv'),'w') as lst:
         reader = csv.reader(f)
         try:
@@ -99,7 +104,8 @@ def main():
 
                 outputImg = os.path.abspath(os.path.join(args.outputdir,'{0}-{1}.png'.format(outputprefix,label)))
                 if (args.skip == 'False') or (not os.path.exists(outputImg)):
-                    capturePage(outputhtmlabs,outputImg)
+                    print("Capturing: \'{0}\'".format(outputhtmlabs))
+		    capturePage(outputhtmlabs,outputImg)
                 toLabel.append((id,label,outputImg,lat))
 
             time.sleep(10) #Make sure the last file has been written to disk
