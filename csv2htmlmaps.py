@@ -17,6 +17,7 @@ RENDEROFFSETX = 8
 RENDEROFFSETY = 8
 
 IMTEXT = " -extent 0x{0[withtextbottom]} -font Arial -pointsize 256 -fill black -strokewidth 1 -stroke black -draw \"text 0,{0[mapbottom]} \'{0[label]}\'\" "
+IMPARMTEXT = "  -font Arial -pointsize 24 -fill black -strokewidth 1 -stroke black -draw \"text 0,{0[mapbottom]} \'{0[label]}\'\" "
 IMCIRCLE = " -fill none -strokewidth {0[strokewidth]} -stroke #4004 -draw \"circle {0[centerX]},{0[centerY]} {0[perimeterX]},{0[centerY]}\" " 
 IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "\"{0[inname]}\" \"{0[outname]}\""
 #Removed "-size 4008x4016"
