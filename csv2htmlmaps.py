@@ -41,6 +41,11 @@ def make_sure_path_exists(path):
         if exception.errno != errno.EEXIST:
             raise
 
+def capturePage(url,outfile):
+    #call autoit script on the url
+    autoitcall = AUTOITPATH + " mapcapture.au3 \"file://{0}\" \"{1}\"".format(url,outfile)
+    subprocess.call(autoitcall)
+    
 def main():
     #print("pxs:{0}".format(metersToPixels(600,0.01,19)))
     parser = argparse.ArgumentParser(description='Script to take coordinates from a CSV input file and output a series of Google Maps HTML files centered on those coordinates')
@@ -92,16 +97,14 @@ def main():
                     print('<iframe width="{2}" height="{2}" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?f=q&amp;source=s_q&amp;hl=en&amp;geocode=&amp;q={0},{1}&amp;aq=&amp;sll={0},{1}&amp;sspn=0.002789,0.003664&amp;t=h&amp;ie=UTF8&amp;z={3}&amp;ll={0},{1}&amp;output=embed"></iframe>'.format(lat,long,pixels,int(args.level)),file=out)
                 print('{0}'.format(outputhtml),file=lst)
 
-                outputpng = os.path.abspath(os.path.join(args.outputdir,'{0}-{1}.png'.format(outputprefix,label)))
-                if (args.skip == 'False') or (not os.path.exists(outputpng)):
-                    #call autoit script on the url
-                    autoitcall = AUTOITPATH + " mapcapture.au3 \"file://{0}\" \"{1}\"".format(outputhtmlabs,outputpng)
-                    subprocess.call(autoitcall)
-                toLabel.append((id,label,outputpng,lat))
+                outputImg = os.path.abspath(os.path.join(args.outputdir,'{0}-{1}.png'.format(outputprefix,label)))
+                if (args.skip == 'False') or (not os.path.exists(outputImg)):
+                    capturePage(outputhtmlabs,outputImg)
+                toLabel.append((id,label,outputImg,lat))
 
             time.sleep(10) #Make sure the last file has been written to disk
             threads = []
-            for id,label,outputpng,lat in toLabel:
+            for id,label,outputImg,lat in toLabel:
                 while len(threads) >= NTHREADS:
                     for thread in threads:
                         thread.poll()
@@ -109,7 +112,7 @@ def main():
                     time.sleep(.100)
 
                 #call imagemagick to annotate the file
-                if os.path.exists(outputpng):
+                if os.path.exists(outputImg):
                     if args.pixels == 'X':
                          pixels = str(2*int(metersToPixels(int(args.radius),float(lat),int(args.level))))
                     else:
@@ -123,7 +126,7 @@ def main():
                     centerX = RENDEROFFSETX + int(pixels)/2
                     centerY = RENDEROFFSETY + int(pixels)/2
                     labeledpng = os.path.join(args.outputdir,'id{0}-{1}-labeled.png'.format(id,label))
-		    magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':label,'inname':outputpng,'outname':labeledpng,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
+		    magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':label,'inname':outputImg,'outname':labeledpng,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
                     print(magiccall)
                     thread = subprocess.Popen(magiccall)
                     threads.append(thread)
