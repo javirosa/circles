@@ -44,12 +44,12 @@ def make_sure_path_exists(path):
 def main():
     #print("pxs:{0}".format(metersToPixels(600,0.01,19)))
     parser = argparse.ArgumentParser(description='Script to take coordinates from a CSV input file and output a series of Google Maps HTML files centered on those coordinates')
-    parser.add_argument('input',help='CSV input filename')
+    parser.add_argument('-i','--input',help='CSV input filename',default='sites.csv')
     parser.add_argument('-o','--outputdir',
                         help='Output directory (will create if does not exist)',
                         default=os.getcwd(),required=False)
     parser.add_argument('-p','--pixels',help='# of pixels for iframe (in each dimension). Use \'X\' if you would like the dimensions to match the radius.',
-                        default=4000, required=False);
+                        default='X', required=False);
     parser.add_argument('-r','--radius',default=650,help='radius in meters of circle.')
     parser.add_argument('-l','--level',default=19,help='google maps zoom level')
     parser.add_argument('-s','--skip',default='True',help='skip downloading maps.')
