@@ -11,12 +11,22 @@ import subprocess
 import time
 from PyQt4 import QtCore, QtGui, QtWebKit
 import capty
+import signal
+
+def signal_handler(signal,frame):
+    sys.exit(1);
+signal.signal(signal.SIGINT,signal_handler)
 
 AUTOITPATH = "C:\Program Files (x86)\AutoIt3\AutoIt3.exe"
 IMAGEMAGICKPATH = "C:\Program Files (x86)\ImageMagick-6.8.6-Q16\convert.exe"
 NTHREADS=4
 RENDEROFFSETX = 8
 RENDEROFFSETY = 8
+
+NTFSWHITELIST = "[A-Za-z0-9~!@#$%^&()_-{},.=[]`']"
+NTFSBLACKLIST = "[\\\\/:*?\"<>|]"
+OSXBLACKLIST="[\0/:]"
+DROPBOXBLACKLIST = "[[]/\\\\=+<>:;\",*.]"#https://forums.dropbox.com/topic.php?id=23023
 
 IMTEXT = " -extent 0x{0[withtextbottom]} -font Arial -pointsize 256 -fill black -strokewidth 1 -stroke black -draw \"text 0,{0[mapbottom]} \'{0[label]}\'\" "
 #IMPARMTEXT = "  -font Arial -pointsize 24 -fill black -strokewidth 1 -stroke black -draw \"text 0,{0[mapbottom]} \'{0[label]}\'\" "
