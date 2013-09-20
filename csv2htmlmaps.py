@@ -27,7 +27,9 @@ NTFSWHITELIST = "[A-Za-z0-9~!@#$%^&()_-{},.=[]`']"
 NTFSBLACKLIST = "\\/:*?\"<>|]"
 OSXBLACKLIST="\0/:"
 DROPBOXBLACKLIST = "[]/\\=+<>:;\",*."#https://forums.dropbox.com/topic.php?id=23023
-BLACKLISt = NTFSBLACKLIST + OSXBLACKLIST + DROPBOXBLACKLIST
+CMDBLACKLIST = "\"\'"
+BLACKLISt = NTFSBLACKLIST + OSXBLACKLIST + DROPBOXBLACKLIST + CMDBLACKLIST
+BLACKLISt = "".join(set(BLACKLISt))
 
 IMTEXT = " -extent 0x{0[withtextbottom]} -font Arial -pointsize 256 -fill black -strokewidth 1 -stroke black -draw \"text 0,{0[mapbottom]} \'{0[label]}\'\" "
 #IMPARMTEXT = "  -font Arial -pointsize 24 -fill black -strokewidth 1 -stroke black -draw \"text 0,{0[mapbottom]} \'{0[label]}\'\" "
@@ -42,6 +44,14 @@ IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "\"{0[inname]}\" -write \"{0[outname]}.png
 #2009
 #For capturepage
 app = QtGui.QApplication(sys.argv) 
+
+def sanitize(name):
+    out = ""
+    for c in name:
+        if c in BLACKLISt:
+            c = hex(ord(c))
+        out += str(c)
+    return out
 
 def metersToPixels(meters,lat,level):
     n = math.cos(lat*math.pi/180)*2*math.pi*6378137
@@ -97,7 +107,7 @@ def main():
                 lat = row[headers.index('lat')]
                 long = row[headers.index('long')]
                 id = row[headers.index('id')]
-                label = row[headers.index('label')]
+                label = sanitize(row[headers.index('label')])
 
                 # use the ID in the filename:
                 outputprefix = 'id{0}'.format(id)
