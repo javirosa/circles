@@ -24,14 +24,15 @@ RENDEROFFSETX = 8
 RENDEROFFSETY = 8
 
 NTFSWHITELIST = "[A-Za-z0-9~!@#$%^&()_-{},.=[]`']"
-NTFSBLACKLIST = "[\\\\/:*?\"<>|]"
-OSXBLACKLIST="[\0/:]"
-DROPBOXBLACKLIST = "[[]/\\\\=+<>:;\",*.]"#https://forums.dropbox.com/topic.php?id=23023
+NTFSBLACKLIST = "\\/:*?\"<>|]"
+OSXBLACKLIST="\0/:"
+DROPBOXBLACKLIST = "[]/\\=+<>:;\",*."#https://forums.dropbox.com/topic.php?id=23023
+BLACKLISt = NTFSBLACKLIST + OSXBLACKLIST + DROPBOXBLACKLIST
 
 IMTEXT = " -extent 0x{0[withtextbottom]} -font Arial -pointsize 256 -fill black -strokewidth 1 -stroke black -draw \"text 0,{0[mapbottom]} \'{0[label]}\'\" "
 #IMPARMTEXT = "  -font Arial -pointsize 24 -fill black -strokewidth 1 -stroke black -draw \"text 0,{0[mapbottom]} \'{0[label]}\'\" "
 IMCIRCLE = " -fill none -strokewidth {0[strokewidth]} -stroke #4004 -draw \"circle {0[centerX]},{0[centerY]} {0[perimeterX]},{0[centerY]}\" " 
-IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "\"{0[inname]}\" \"{0[outname]}\""
+IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "\"{0[inname]}\" -write \"{0[outname]}.png\" \"{0[outname]}.jpg\""
 #Removed "-size 4008x4016"
 
 #w/2+strokewidth/2+r
@@ -118,7 +119,7 @@ def main():
 		    capturePage(outputhtmlabs,outputImg)
                 toLabel.append((id,label,outputImg,lat))
 
-            time.sleep(10) #Make sure the last file has been written to disk
+#            time.sleep(10) #Make sure the last file has been written to disk
             threads = []
             for id,label,outputImg,lat in toLabel:
                 while len(threads) >= NTHREADS:
@@ -141,8 +142,8 @@ def main():
                     perimeterX = RENDEROFFSETX+int(pixels)/2+int(pixels)/2+metersToPixels(int(args.radius),float(lat),int(args.level)) 
                     centerX = RENDEROFFSETX + int(pixels)/2
                     centerY = RENDEROFFSETY + int(pixels)/2
-                    labeledpng = os.path.join(args.outputdir,'id{0}-{1}-labeled.png'.format(id,label))
-		    magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':label,'inname':outputImg,'outname':labeledpng,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
+                    labeledImg  = os.path.join(args.outputdir,'id{0}-{1}-labeled'.format(id,label))
+		    magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':label,'inname':outputImg,'outname':labeledImg,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
                     print(magiccall)
                     thread = subprocess.Popen(magiccall)
                     threads.append(thread)
