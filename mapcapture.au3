@@ -11,7 +11,7 @@ ShellExecute($url)
 AutoItSetOption("WinTitleMatchMode",2)
 
 ;WinActivate($browser)
-Sleep(30000) ;loading image
+Sleep(120000) ;loading image
 $browser = WinGetHandle("[CLASS:MozillaWindowClass]")
 WinActivate($browser)
 WinActivate($browser)

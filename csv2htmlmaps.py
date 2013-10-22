@@ -9,6 +9,13 @@ import sys
 import math
 import subprocess
 import time
+from PyQt4 import QtCore, QtGui, QtWebKit
+import capty
+import signal
+
+def signal_handler(signal,frame):
+    sys.exit(1);
+signal.signal(signal.SIGINT,signal_handler)
 
 AUTOITPATH = "C:\Program Files (x86)\AutoIt3\AutoIt3.exe"
 IMAGEMAGICKPATH = "C:\Program Files (x86)\ImageMagick-6.8.6-Q16\convert.exe"
@@ -16,9 +23,18 @@ NTHREADS=4
 RENDEROFFSETX = 8
 RENDEROFFSETY = 8
 
+NTFSWHITELIST = "[A-Za-z0-9~!@#$%^&()_-{},.=[]`']"
+NTFSBLACKLIST = "\\/:*?\"<>|]"
+OSXBLACKLIST="\0/:"
+DROPBOXBLACKLIST = "[]/\\=+<>:;\",*."#https://forums.dropbox.com/topic.php?id=23023
+CMDBLACKLIST = "\"\'"
+BLACKLISt = NTFSBLACKLIST + OSXBLACKLIST + DROPBOXBLACKLIST + CMDBLACKLIST
+BLACKLISt = "".join(set(BLACKLISt))
+
 IMTEXT = " -extent 0x{0[withtextbottom]} -font Arial -pointsize 256 -fill black -strokewidth 1 -stroke black -draw \"text 0,{0[mapbottom]} \'{0[label]}\'\" "
+#IMPARMTEXT = "  -font Arial -pointsize 24 -fill black -strokewidth 1 -stroke black -draw \"text 0,{0[mapbottom]} \'{0[label]}\'\" "
 IMCIRCLE = " -fill none -strokewidth {0[strokewidth]} -stroke #4004 -draw \"circle {0[centerX]},{0[centerY]} {0[perimeterX]},{0[centerY]}\" " 
-IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "\"{0[inname]}\" \"{0[outname]}\" "
+IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "\"{0[inname]}\" -write \"{0[outname]}.png\" \"{0[outname]}.jpg\""
 #Removed "-size 4008x4016"
 
 #w/2+strokewidth/2+r
@@ -26,6 +42,17 @@ IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "\"{0[inname]}\" \"{0[outname]}\" "
 
 #Ref: http://msdn.microsoft.com/en-us/library/bb259689.aspx
 #2009
+#For capturepage
+app = QtGui.QApplication(sys.argv) 
+
+def sanitize(name):
+    out = ""
+    for c in name:
+        if c in BLACKLISt:
+            c = hex(ord(c))
+        out += str(c)
+    return out
+
 def metersToPixels(meters,lat,level):
     n = math.cos(lat*math.pi/180)*2*math.pi*6378137
     d = 256*2**level
@@ -40,10 +67,15 @@ def make_sure_path_exists(path):
         if exception.errno != errno.EEXIST:
             raise
 
+def capturePage(url,outfile):
+    c = capty.Capturer(url, outfile)
+    c.capture()
+    app.exec_()
+        
 def main():
     #print("pxs:{0}".format(metersToPixels(600,0.01,19)))
     parser = argparse.ArgumentParser(description='Script to take coordinates from a CSV input file and output a series of Google Maps HTML files centered on those coordinates')
-    parser.add_argument('input',help='CSV input filename')
+    parser.add_argument('-i','--input',help='CSV input filename',default='sites.csv')
     parser.add_argument('-o','--outputdir',
                         help='Output directory (will create if does not exist)',
                         default=os.getcwd(),required=False)
@@ -51,8 +83,7 @@ def main():
                         default='X', required=False);
     parser.add_argument('-r','--radius',default=650,help='radius in meters of circle.')
     parser.add_argument('-l','--level',default=19,help='google maps zoom level')
-    parser.add_argument('-s','--skip',default='True',help='skip downloading maps.')
-    parser.add_argument('-f','--format',default='jpg',help='output format.')
+    parser.add_argument('-s','--skip',default='False',help='skip downloading maps.')
 
     args = parser.parse_args()
 
@@ -64,8 +95,8 @@ def main():
     # (should really test if its writeable too)
     make_sure_path_exists(args.outputdir);
 
-    # now read the csv file
 
+    # now read the csv file
     with open(args.input, 'rUb') as f, open(os.path.join(args.outputdir,'listing.csv'),'w') as lst:
         reader = csv.reader(f)
         try:
@@ -76,7 +107,7 @@ def main():
                 lat = row[headers.index('lat')]
                 long = row[headers.index('long')]
                 id = row[headers.index('id')]
-                label = row[headers.index('label')]
+                label = sanitize(row[headers.index('label')])
 
                 # use the ID in the filename:
                 outputprefix = 'id{0}'.format(id)
@@ -92,16 +123,15 @@ def main():
                     print('<iframe width="{2}" height="{2}" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?f=q&amp;source=s_q&amp;hl=en&amp;geocode=&amp;q={0},{1}&amp;aq=&amp;sll={0},{1}&amp;sspn=0.002789,0.003664&amp;t=h&amp;ie=UTF8&amp;z={3}&amp;ll={0},{1}&amp;output=embed"></iframe>'.format(lat,long,pixels,int(args.level)),file=out)
                 print('{0}'.format(outputhtml),file=lst)
 
-                outputpng = os.path.abspath(os.path.join(args.outputdir,'{0}-{1}.png'.format(outputprefix,label)))
-                if (args.skip == 'False') or (not os.path.exists(outputpng)):
-                    #call autoit script on the url
-                    autoitcall = AUTOITPATH + " mapcapture.au3 \"file://{0}\" \"{1}\"".format(outputhtmlabs,outputpng)
-                    subprocess.call(autoitcall)
-                toLabel.append((id,label,outputpng,lat))
+                outputImg = os.path.abspath(os.path.join(args.outputdir,'{0}-{1}.png'.format(outputprefix,label)))
+                if (args.skip == 'False') or (not os.path.exists(outputImg)):
+                    print("Capturing: \'{0}\'".format(outputhtmlabs))
+		    capturePage(outputhtmlabs,outputImg)
+                toLabel.append((id,label,outputImg,lat))
 
-            time.sleep(10) #Make sure the last file has been written to disk
+#            time.sleep(10) #Make sure the last file has been written to disk
             threads = []
-            for id,label,outputpng,lat in toLabel:
+            for id,label,outputImg,lat in toLabel:
                 while len(threads) >= NTHREADS:
                     for thread in threads:
                         thread.poll()
@@ -109,7 +139,7 @@ def main():
                     time.sleep(.100)
 
                 #call imagemagick to annotate the file
-                if os.path.exists(outputpng):
+                if os.path.exists(outputImg):
                     if args.pixels == 'X':
                          pixels = str(2*int(metersToPixels(int(args.radius),float(lat),int(args.level))))
                     else:
@@ -122,8 +152,8 @@ def main():
                     perimeterX = RENDEROFFSETX+int(pixels)/2+int(pixels)/2+metersToPixels(int(args.radius),float(lat),int(args.level)) 
                     centerX = RENDEROFFSETX + int(pixels)/2
                     centerY = RENDEROFFSETY + int(pixels)/2
-                    labeledpng = os.path.join(args.outputdir,'id{0}-{1}-labeled.{2}'.format(id,label,args.format))
-		    magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':label,'inname':outputpng,'outname':labeledpng,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
+                    labeledImg  = os.path.join(args.outputdir,'id{0}-{1}-labeled'.format(id,label))
+		    magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':label,'inname':outputImg,'outname':labeledImg,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
                     print(magiccall)
                     thread = subprocess.Popen(magiccall)
                     threads.append(thread)
