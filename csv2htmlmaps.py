@@ -30,12 +30,13 @@ DROPBOXBLACKLIST = "[]/\\=+<>:;\",*."#https://forums.dropbox.com/topic.php?id=23
 CMDBLACKLIST = "\"\'"
 BLACKLISt = NTFSBLACKLIST + OSXBLACKLIST + DROPBOXBLACKLIST + CMDBLACKLIST
 BLACKLISt = "".join(set(BLACKLISt))
+OUTOFBOUNDSCOLR = "#4004"
 
+#TODO Convert these into lists so that we can later call convert in linux. Right now this causes errors when using POpen. Windows has errors when using POpen with shell=true
 IMTEXT = " -extent 0x{0[withtextbottom]} -font Arial -pointsize 256 -fill black -strokewidth 1 -stroke black -draw \"text 0,{0[mapbottom]} \'{0[label]}\'\" "
 #IMPARMTEXT = "  -font Arial -pointsize 24 -fill black -strokewidth 1 -stroke black -draw \"text 0,{0[mapbottom]} \'{0[label]}\'\" "
 IMCIRCLE = " -fill none -strokewidth {0[strokewidth]} -stroke #4004 -draw \"circle {0[centerX]},{0[centerY]} {0[perimeterX]},{0[centerY]}\" " 
-IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "\"{0[inname]}\" -write \"{0[outname]}.png\" \"{0[outname]}.jpg\""
-#Removed "-size 4008x4016"
+IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "\"{0[inname]}\" -write \"{0[outname1]}\" \"{0[outname2]}\""
 
 #w/2+strokewidth/2+r
 #the above requires a label infile and outfile to be present in the format dictionary. TODO: fix the radius and do the caluclaton for it
@@ -95,6 +96,8 @@ def main():
     # check/create output directory
     # (should really test if its writeable too)
     make_sure_path_exists(outputdir);
+    make_sure_path_exists(os.path.join(outputdir,"labeled","jpg"));
+    make_sure_path_exists(os.path.join(outputdir,"labeled","png"));
 
     ## debug: show values ##
     print ("Input file: %s" % args.input )
@@ -159,8 +162,9 @@ def main():
                     perimeterX = RENDEROFFSETX+int(pixels)/2+int(pixels)/2+metersToPixels(int(args.radius),float(lat),int(args.level)) 
                     centerX = RENDEROFFSETX + int(pixels)/2
                     centerY = RENDEROFFSETY + int(pixels)/2
-                    labeledImg  = os.path.join(outputdir,'id{0}-{1}-labeled'.format(id,label))
-                    magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':label,'inname':outputImg,'outname':labeledImg,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
+                    labeledImg1  = os.path.join(outputdir,"labeled","jpg",'id{0}-{1}-labeled.{2}'.format(id,label,"jpg"))
+                    labeledImg2  = os.path.join(outputdir,"labeled","png",'id{0}-{1}-labeled.{2}'.format(id,label,"png"))
+                    magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':label,'inname':outputImg,'outname1':labeledImg1,'outname2':labeledImg2,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
                     print(magiccall)
                     thread = subprocess.Popen(magiccall)
                     threads.append(thread)
