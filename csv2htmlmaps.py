@@ -19,7 +19,7 @@ signal.signal(signal.SIGINT,signal_handler)
 
 AUTOITPATH = "C:\Program Files (x86)\AutoIt3\AutoIt3.exe"
 IMAGEMAGICKPATH = "C:\Program Files (x86)\ImageMagick-6.8.6-Q16\convert.exe"
-NTHREADS=4
+NTHREADS=3
 RENDEROFFSETX = 8
 RENDEROFFSETY = 8
 
