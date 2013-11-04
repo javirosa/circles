@@ -106,6 +106,9 @@ def main():
                 name = row[headers.index('name')]
                 lat = row[headers.index('lat')]
                 long = row[headers.index('long')]
+                if (lat.strip() == "" or long.strip() == "" ): 
+		    print "Skipping",name, "due to invalid geopoint."
+		    continue
                 id = row[headers.index('id')]
                 label = sanitize(row[headers.index('label')])
 
