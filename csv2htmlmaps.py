@@ -87,17 +87,21 @@ def main():
 
     args = parser.parse_args()
 
-    ## debug: show values ##
-    print ("Input file: %s" % args.input )
-    print ("Output directory: %s" % args.outputdir )
-
+    collectionDir = args.input + "."
+    dot = collectionDir.index(".")
+    collectionDir = collectionDir[0:dot]
+    collectionDir = sanitize(collectionDir)
+    outputdir = os.path.join(args.outputdir,collectionDir)
     # check/create output directory
     # (should really test if its writeable too)
-    make_sure_path_exists(args.outputdir);
+    make_sure_path_exists(outputdir);
 
+    ## debug: show values ##
+    print ("Input file: %s" % args.input )
+    print ("Output directory: %s" % outputdir )
 
     # now read the csv file
-    with open(args.input, 'rUb') as f, open(os.path.join(args.outputdir,'listing.csv'),'w') as lst:
+    with open(args.input, 'rUb') as f, open(os.path.join(outputdir,'listing.csv'),'w') as lst:
         reader = csv.reader(f)
         try:
             headers = reader.next()
@@ -107,15 +111,15 @@ def main():
                 lat = row[headers.index('lat')]
                 long = row[headers.index('long')]
                 if (lat.strip() == "" or long.strip() == "" ): 
-		    print "Skipping",name, "due to invalid geopoint."
-		    continue
+                    print("Skipping",name, "due to invalid geopoint.")
+                    continue
                 id = row[headers.index('id')]
                 label = sanitize(row[headers.index('label')])
 
                 # use the ID in the filename:
                 outputprefix = 'id{0}'.format(id)
                 outputhtml = '{0}.html'.format(outputprefix)
-                outputhtmlabs = os.path.abspath(os.path.join(args.outputdir,outputhtml))
+                outputhtmlabs = os.path.abspath(os.path.join(outputdir,outputhtml))
                 with open(outputhtmlabs,'w') as out:
                     if args.pixels == 'X':
                          pixels = str(2*int(metersToPixels(int(args.radius),float(lat),int(args.level))))
@@ -126,10 +130,10 @@ def main():
                     print('<iframe width="{2}" height="{2}" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?f=q&amp;source=s_q&amp;hl=en&amp;geocode=&amp;q={0},{1}&amp;aq=&amp;sll={0},{1}&amp;sspn=0.002789,0.003664&amp;t=h&amp;ie=UTF8&amp;z={3}&amp;ll={0},{1}&amp;output=embed"></iframe>'.format(lat,long,pixels,int(args.level)),file=out)
                 print('{0}'.format(outputhtml),file=lst)
 
-                outputImg = os.path.abspath(os.path.join(args.outputdir,'{0}-{1}.png'.format(outputprefix,label)))
+                outputImg = os.path.abspath(os.path.join(outputdir,'{0}-{1}.png'.format(outputprefix,label)))
                 if (args.skip == 'False') or (not os.path.exists(outputImg)):
                     print("Capturing: \'{0}\'".format(outputhtmlabs))
-		    capturePage(outputhtmlabs,outputImg)
+                    capturePage(outputhtmlabs,outputImg)
                 toLabel.append((id,label,outputImg,lat))
 
 #            time.sleep(10) #Make sure the last file has been written to disk
@@ -155,8 +159,8 @@ def main():
                     perimeterX = RENDEROFFSETX+int(pixels)/2+int(pixels)/2+metersToPixels(int(args.radius),float(lat),int(args.level)) 
                     centerX = RENDEROFFSETX + int(pixels)/2
                     centerY = RENDEROFFSETY + int(pixels)/2
-                    labeledImg  = os.path.join(args.outputdir,'id{0}-{1}-labeled'.format(id,label))
-		    magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':label,'inname':outputImg,'outname':labeledImg,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
+                    labeledImg  = os.path.join(outputdir,'id{0}-{1}-labeled'.format(id,label))
+                    magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':label,'inname':outputImg,'outname':labeledImg,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
                     print(magiccall)
                     thread = subprocess.Popen(magiccall)
                     threads.append(thread)
