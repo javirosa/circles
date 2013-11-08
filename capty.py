@@ -68,14 +68,14 @@ class Capturer(object):
     def doCapture(self):
         self.wb.setViewportSize(self.wb.mainFrame().contentsSize())
         img = QtGui.QImage(self.wb.viewportSize(), QtGui.QImage.Format_ARGB32)
-        print self.wb.viewportSize()
-        print "Creating Painter"
+        print str(self.wb.viewportSize())+"...",
+        print "Creating Painter...",
         painter = QtGui.QPainter(img)
-        print "Rendering"
+        print "Rendering...",
         self.wb.mainFrame().render(painter)
-        print "Finish rendering."
+        print "Finish rendering...",
         painter.end()
-        print "Saving file."
+        print "Saving file...",
         img.save(self.filename)
         print "Quitting instance."
         QtCore.QCoreApplication.instance().quit()
