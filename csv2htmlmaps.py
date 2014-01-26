@@ -12,6 +12,7 @@ import time
 from PyQt4 import QtCore, QtGui, QtWebKit
 import capty
 import signal
+import uuid
 
 def signal_handler(signal,frame):
     sys.exit(1);
@@ -110,17 +111,19 @@ def main():
             headers = reader.next()
             toLabel = []
             for row in reader:
-                name = row[headers.index('name')]
+                #name = row[headers.index('name')]#name is ignored?
                 lat = row[headers.index('lat')]
                 long = row[headers.index('long')]
                 if (lat.strip() == "" or long.strip() == "" ): 
                     print("Skipping",name, "due to invalid geopoint.")
                     continue
-                id = row[headers.index('id')]
-                label = sanitize(row[headers.index('label')])
+                id = sanitize(row[headers.index('id')])
+                label = sanitize(row[headers.index('label')].strip())
+                if (not label):
+                    label=id
 
                 # use the ID in the filename:
-                outputprefix = 'id{0}'.format(id)
+                outputprefix = 'id[{0}]'.format(id)
                 outputhtml = '{0}.html'.format(outputprefix)
                 outputhtmlabs = os.path.abspath(os.path.join(outputdir,outputhtml))
                 with open(outputhtmlabs,'w') as out:
@@ -133,7 +136,7 @@ def main():
                     print('<iframe width="{2}" height="{2}" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?f=q&amp;source=s_q&amp;hl=en&amp;geocode=&amp;q={0},{1}&amp;aq=&amp;sll={0},{1}&amp;sspn=0.002789,0.003664&amp;t=h&amp;ie=UTF8&amp;z={3}&amp;ll={0},{1}&amp;output=embed"></iframe>'.format(lat,long,pixels,int(args.level)),file=out)
                 print('{0}'.format(outputhtml),file=lst)
 
-                outputImg = os.path.abspath(os.path.join(outputdir,'{0}-{1}.png'.format(outputprefix,label)))
+                outputImg = os.path.abspath(os.path.join(outputdir,'{0}_{1}.png'.format(outputprefix,label)))
                 if (args.skip == 'False') or (not os.path.exists(outputImg)):
                     print("Capturing: \'{0}\'".format(outputhtmlabs))
                     capturePage(outputhtmlabs,outputImg)
