@@ -14,7 +14,7 @@ import capty
 import signal
 import uuid
 import PIL.Image as Image
-import PIL.ImageDraw2 as ImageDraw2
+import PIL.ImageDraw as ImageDraw
 
 def signal_handler(signal,frame):
     sys.exit(1);
@@ -71,7 +71,7 @@ def GPSToPixels(lat,long,level):
     sinLat = math.sin(lat*math.pi/180)
     mapSize = 256*2**level
     pixelX = ((long + 180)/360)*mapSize
-    pixelY = 0.5 - math.log((1 + sinLat)/(1 - sinLat)) / ((4 * math.pi)*mapSize)
+    pixelY = (0.5 - math.log((1 + sinLat)/(1 - sinLat)) / (4 * math.pi))*mapSize
     return (pixelX,pixelY)
     
 #Given the center lat0/long0 and it's local pixel position X0,Y0 find the local pixel position of lat1,long1
@@ -79,6 +79,7 @@ def GPSToLocalPixels(lat0,long0,lat1,long1,X0,Y0,level):
     #find global pixel coordinates of location 0 and location 1
     globalX0,globalY0=GPSToPixels(lat0,long0,level)
     globalX1,globalY1=GPSToPixels(lat1,long1,level)
+
     #Take the difference of the two and add them to X0,Y0
     globalXDiff = globalX1-globalX0
     globalYDiff = globalY1-globalY0
@@ -205,7 +206,6 @@ def main():
 
             #call imagemagick to annotate the file
             if os.path.exists(outputImg):
-
                 centerX,centerY,perimeterX = circleParms(args.radius,lat,pixels,args.level)
                 
                 labeledImg1  = os.path.join(outputdir,"labeled","jpg",'id[{0}]_label[{1}]_labeled.{2}'.format(id,label,"jpg"))
@@ -230,12 +230,28 @@ def main():
                     #load output img
                     labeledImg1  = os.path.join(outputdir,"labeled","jpg",'id[{0}]_label[{1}]_labeled.{2}'.format(id,label,"jpg"))
                     labeledImg2  = os.path.join(outputdir,"labeled","png",'id[{0}]_label[{1}]_labeled.{2}'.format(id,label,"png"))
-                    labeldJPG  = Image.open(labeledImg1)
-                    labeldPNG  = Image.open(labeledImg2)
-
+                    houseImageJPG = Image.open(labeledImg1)
+                    houseImagePNG = Image.open(labeledImg2)
+                    houseDrawJPG  = ImageDraw.Draw(houseImageJPG)
+                    houseDrawPNG  = ImageDraw.Draw(houseImagePNG)
+                    
                     #plot site file points on output img and save                    
                     for pt in sitePts:
-                        pass
+                        latH = float(pt[headerPts.index('latitude')])
+                        longH = float(pt[headerPts.index('longitude')])
+                        centerX,centerY,perimeterX = circleParms(args.radius,lat,pixels,args.level) 
+                        HCenterX,HCenterY=GPSToLocalPixels(lat,long,latH,longH,centerX,centerY,args.level)
+                        radiusPx = metersToPixels(5,lat,args.level)
+                        houseDrawJPG.ellipse((HCenterX-radiusPx,HCenterY-radiusPx,HCenterX+radiusPx,HCenterY+radiusPx),fill=(255,0,0))
+                        houseDrawPNG.ellipse((HCenterX-radiusPx,HCenterY-radiusPx,HCenterX+radiusPx,HCenterY+radiusPx),fill=(255,0,0))
+                        houseDrawJPG.text((HCenterX-radiusPx,HCenterY-radiusPx,HCenterX+radiusPx,HCenterY+radiusPx),fill=(255,0,0))
+                        houseDrawPNG.ellipse((HCenterX-radiusPx,HCenterY-radiusPx,HCenterX+radiusPx,HCenterY+radiusPx),fill=(255,0,0))
+                        
+                    
+                    houseImageJPG.save(os.path.join(outputdir,"labeled","jpg",'id[{0}]_label[{1}]_houses.{2}'.format(id,label,"jpg")))
+                    houseImagePNG.save(os.path.join(outputdir,"labeled","png",'id[{0}]_label[{1}]_houses.{2}'.format(id,label,"png")))
+                        
+                        
 
 if __name__ == "__main__":
         main()
