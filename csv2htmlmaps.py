@@ -13,6 +13,8 @@ from PyQt4 import QtCore, QtGui, QtWebKit
 import capty
 import signal
 import uuid
+import PIL.Image as Image
+import PIL.ImageDraw2 as ImageDraw2
 
 def signal_handler(signal,frame):
     sys.exit(1);
@@ -21,6 +23,7 @@ signal.signal(signal.SIGINT,signal_handler)
 AUTOITPATH = "C:\Program Files (x86)\AutoIt3\AutoIt3.exe"
 IMAGEMAGICKPATH = "C:\Program Files (x86)\ImageMagick-6.8.6-Q16\convert.exe"
 NTHREADS=3
+#offset by 8 because the image isn't in the center
 RENDEROFFSETX = 8
 RENDEROFFSETY = 8
 
@@ -40,15 +43,13 @@ IMTEXT = " -extent 0x{0[withtextbottom]} -font Arial -pointsize 256 -fill black 
 #IMPARMTEXT = "  -font Arial -pointsize 24 -fill black -strokewidth 1 -stroke black -draw \"text 0,{0[mapbottom]} \'{0[label]}\'\" "
 IMCIRCLE = " -fill none -strokewidth {0[strokewidth]} -stroke #4004 -draw \"circle {0[centerX]},{0[centerY]} {0[perimeterX]},{0[centerY]}\" " 
 IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "\"{0[inname]}\" -write \"{0[outname1]}\" \"{0[outname2]}\""
-IMPT1 = ""
-
 
 #w/2+strokewidth/2+r
-#the above requires a label infile and outfile to be present in the format dictionary. TODO: fix the radius and do the caluclaton for it
+#the above requires a label infile and outfile to be present in the format dictionary. 
 
 #2009
 #For capturepage
-app = QtGui.QApplication(sys.argv) 
+app = QtGui.QApplication(sys.argv)
 
 def sanitize(name):
     out = ""
@@ -61,19 +62,27 @@ def sanitize(name):
 #Ref: http://msdn.microsoft.com/en-us/library/bb259689.aspx
 def metersToPixels(meters,lat,level):
     n = math.cos(lat*math.pi/180)*2*math.pi*6378137
-    d = 256*2**level
-    return meters/(n/d)
+    mapSize = 256*2**level
+    return meters/(n/mapSize)
     
 #Ref: http://msdn.microsoft.com/en-us/library/bb259689.aspx
+#not sure about the 0.5
 def GPSToPixels(lat,long,level):
     sinLat = math.sin(lat*math.pi/180)
-    pixelX = ((long + 180)/360)*256*2**level
-    pixelY = (0.5 - math.log((1 + sinLat) / (1 - sinLat)) / (4 * math.pi)*256*2**level;
+    mapSize = 256*2**level
+    pixelX = ((long + 180)/360)*mapSize
+    pixelY = 0.5 - math.log((1 + sinLat)/(1 - sinLat)) / ((4 * math.pi)*mapSize)
     return (pixelX,pixelY)
     
-#Given the center lat/long and it's local pixel position find the local pixel position of lat1,long1
-def GPSToLocalPixels(lat0,long0,lat1,long1,X0,Y0):
-    return None
+#Given the center lat0/long0 and it's local pixel position X0,Y0 find the local pixel position of lat1,long1
+def GPSToLocalPixels(lat0,long0,lat1,long1,X0,Y0,level):
+    #find global pixel coordinates of location 0 and location 1
+    globalX0,globalY0=GPSToPixels(lat0,long0,level)
+    globalX1,globalY1=GPSToPixels(lat1,long1,level)
+    #Take the difference of the two and add them to X0,Y0
+    globalXDiff = globalX1-globalX0
+    globalYDiff = globalY1-globalY0
+    return X0+globalXDiff,Y0+globalYDiff
 
 # avoids race condition of directory being created between a check for
 # its existence and then its creation:
@@ -88,6 +97,21 @@ def capturePage(url,outfile):
     c = capty.Capturer(url, outfile)
     c.capture()
     app.exec_()
+    
+#NOTE pixels is reused for strokewidth and to get the center of the image
+def circleParms(radius,lat,pixels,level):
+    centerX = RENDEROFFSETX + pixels/2
+    centerY = RENDEROFFSETY + pixels/2
+    #offset by 4000/2 because we want to have the circle in the center
+    #we are actually using the stroke to create the outline 
+    #so we offset the radius by the strokewidth/2 (pixels/2) since 
+    #the stroke is actually along the center of the perimeter line
+    perimeterX = centerX+metersToPixels(radius,lat,level)+pixels/2
+    return centerX,centerY,perimeterX
+    
+#TODO is it most accurate to turn it into an int before or after the multiply by 2?
+def pixelWidth(radius,lat,level):
+    return 2*int(metersToPixels(radius,lat,level))
         
 def main():
     #print("pxs:{0}".format(metersToPixels(600,0.01,19)))
@@ -101,9 +125,12 @@ def main():
     parser.add_argument('-r','--radius',default=650,help='radius in meters of off limites circle.')
     parser.add_argument('-l','--level',default=19,help='google maps zoom level')
     parser.add_argument('-s','--skip',default='False',help='skip downloading unlabeled maps if already downloaded.')
+    parser.add_argument('-H','--houses',default=None,help='plot houses file.')
 
     args = parser.parse_args()
-
+    args.radius = int(args.radius)
+    args.level = int(args.level)
+    
     collectionDir = args.input + "."
     dot = collectionDir.index(".")
     collectionDir = collectionDir[0:dot]
@@ -125,39 +152,51 @@ def main():
         try:
             headers = reader.next()
             for row in reader:
-                lat = row[headers.index('lat')]
-                long = row[headers.index('long')]
-                if (lat.strip() == "" or long.strip() == "" ): 
-                    print("Skipping",name, "due to invalid geopoint.")
-                    continue
-                id = sanitize(row[headers.index('id')])
+                siteno = row[headers.index('siteno')]
+                id = ""
+                try:
+                    id = sanitize(row[headers.index('id')])
+                except ValueError,ve:
+                    id = sanitize(row[headers.index('metainstanceid')])
+                
                 label = sanitize(row[headers.index('label')].strip())
                 if (not label):
                     label=id
-
+                
+                lat,long = 0.0,0.0
+                try:
+                    lat = float(row[headers.index('lat')])
+                    long = float(row[headers.index('long')])
+                except ValueError, ve:
+                    print("Skipping",id, "due to invalid geopoint.")
+                    continue
+                
+                pixels=0
+                if args.pixels == 'X':
+                    pixels = pixelWidth(args.radius,lat,args.level)
+                else:
+                    pixels = int(args.pixels)
+                
                 # use the ID in the filename:
                 outputprefix = 'id[{0}]'.format(id)
                 outputhtml = '{0}.html'.format(outputprefix)
                 outputhtmlabs = os.path.abspath(os.path.join(outputdir,outputhtml))
+                        
                 with open(outputhtmlabs,'w') as out:
-                    if args.pixels == 'X':
-                         pixels = str(2*int(metersToPixels(int(args.radius),float(lat),int(args.level))))
-                    else:
-                         pixels = args.pixels
-                    print('<iframe width="{2}" height="{2}" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?f=q&amp;source=s_q&amp;hl=en&amp;geocode=&amp;q={0},{1}&amp;aq=&amp;sll={0},{1}&amp;sspn=0.002789,0.003664&amp;t=h&amp;ie=UTF8&amp;z={3}&amp;ll={0},{1}&amp;output=embed"></iframe>'.format(lat,long,pixels,int(args.level)),file=out)
+                    print('<iframe width="{2}" height="{2}" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?f=q&amp;source=s_q&amp;hl=en&amp;geocode=&amp;q={0},{1}&amp;aq=&amp;sll={0},{1}&amp;sspn=0.002789,0.003664&amp;t=h&amp;ie=UTF8&amp;z={3}&amp;ll={0},{1}&amp;output=embed"></iframe>'.format(lat,long,pixels,args.level),file=out)
                 print('{0}'.format(outputhtml),file=lst)
 
                 outputImg = os.path.abspath(os.path.join(outputdir,'{0}_label[{1}].png'.format(outputprefix,label)))
                 if (args.skip == 'False') or (not os.path.exists(outputImg)):
                     print("Capturing: \'{0}\'".format(outputhtmlabs))
                     capturePage(outputhtmlabs,outputImg)
-                toLabel.append((id,label,outputImg,lat))
+                toLabel.append((id,label,outputImg,lat,long,siteno,pixels))
         except csv.Error as e:
             sys.exit('file %s, line %d: %s' % (args.input, reader.line_num, e))
             
         # Ideally a callback would be used instead of polling the threads continuously
         threads = []
-        for id,label,outputImg,lat in toLabel:
+        for id,label,outputImg,lat,long,siteno,pixels in toLabel:
             while len(threads) >= NTHREADS:
                 for thread in threads:
                     thread.poll()
@@ -166,18 +205,9 @@ def main():
 
             #call imagemagick to annotate the file
             if os.path.exists(outputImg):
-                if args.pixels == 'X':
-                     pixels = str(2*int(metersToPixels(int(args.radius),float(lat),int(args.level))))
-                else:
-                     pixels = args.pixels
-                #offset by 8 because the image isn't in the center
-                #offset by 4000/2 because we want to have the circle in the center
-                #we are actually using the stroke to create the outline 
-                #so we offset the radius by the strokewidth/2 since 
-                #the stroke is actually put on the center of the perimeter
-                perimeterX = RENDEROFFSETX+int(pixels)/2+int(pixels)/2+metersToPixels(int(args.radius),float(lat),int(args.level)) 
-                centerX = RENDEROFFSETX + int(pixels)/2
-                centerY = RENDEROFFSETY + int(pixels)/2
+
+                centerX,centerY,perimeterX = circleParms(args.radius,lat,pixels,args.level)
+                
                 labeledImg1  = os.path.join(outputdir,"labeled","jpg",'id[{0}]_label[{1}]_labeled.{2}'.format(id,label,"jpg"))
                 labeledImg2  = os.path.join(outputdir,"labeled","png",'id[{0}]_label[{1}]_labeled.{2}'.format(id,label,"png"))
                 magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':label,'inname':outputImg,'outname1':labeledImg1,'outname2':labeledImg2,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
@@ -186,6 +216,26 @@ def main():
                 threads.append(thread)
         for thread in threads:
             thread.wait()
+        
+        #Plot house coordinates
+        if args.houses:
+            #load associated site file
+            with open(args.houses, 'rUb') as f:
+                housePts = csv.reader(f)
+                headerPts = housePts.next()
+                allPts = list(housePts)
+                
+                for id,label,outputImg,lat,long,siteno,pixels in toLabel:
+                    sitePts = [ x for x in allPts if x[headerPts.index('siteno')] == siteno]
+                    #load output img
+                    labeledImg1  = os.path.join(outputdir,"labeled","jpg",'id[{0}]_label[{1}]_labeled.{2}'.format(id,label,"jpg"))
+                    labeledImg2  = os.path.join(outputdir,"labeled","png",'id[{0}]_label[{1}]_labeled.{2}'.format(id,label,"png"))
+                    labeldJPG  = Image.open(labeledImg1)
+                    labeldPNG  = Image.open(labeledImg2)
+
+                    #plot site file points on output img and save                    
+                    for pt in sitePts:
+                        pass
 
 if __name__ == "__main__":
         main()
