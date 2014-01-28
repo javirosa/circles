@@ -32,8 +32,8 @@ RENDEROFFSETY = 8
 
 TXTCOLOR = (255,255,255)
 TXTBOLDCOLOR = (0,0,0)
-TXTFONT = ImageFont.truetype("LiberationMono-Regular.ttf",30)
-TXTBOLDFONT = ImageFont.truetype("LiberationMono-Bold.ttf",30)
+TXTFONT = ImageFont.truetype("LiberationMono-Regular.ttf",24)
+TXTBOLDFONT = ImageFont.truetype("LiberationMono-Bold.ttf",24)
 
 #These are not totally correct as they are overly restrictive, but it works for my purposes.
 NTFSWHITELIST = "[A-Za-z0-9~!@#$%^&()_-{},.=[]`']"
@@ -256,9 +256,12 @@ def main():
                         #HH ID: 11
                         #HH Name: Robert Musango Oduori (Musango)
                         #Guide Name: Paul Atoni Makokha (Makokha) / 0719524015
-                        houseTXT1 = "HH ID: {hhid}".format(**row) 
-                        houseTXT2 = "HH Name: {first} {middle} {last} ({common})".format(**row)
-                        houseTXT3 = "Guide Name: {guide_first} {guide_middle} {guide_last} ({guide_common}) / {guide_phone}".format(**row)
+                        #houseTXT1 = "HH ID: {hhid}".format(**row) 
+                        #houseTXT2 = "HH Name: {first} {middle} {last} ({common})".format(**row)
+                        #houseTXT3 = "Guide Name: {guide_first} {guide_middle} {guide_last} ({guide_common}) / {guide_phone}".format(**row)
+                        houseTXT1 = "ID: {hhid}".format(**row) 
+                        houseTXT2 = "Name: {first} {middle} {last} ({common})".format(**row)
+                        houseTXT3 = "Guide: {guide_first} {guide_middle} {guide_last} ({guide_common}) / {guide_phone}".format(**row)
                         
                         centerX,centerY,perimeterX = circleParms(args.radius,lat,pixels,args.level) 
                         HCenterX,HCenterY=GPSToLocalPixels(lat,long,latH,longH,centerX,centerY,args.level)
@@ -266,12 +269,12 @@ def main():
                         
                         houseDrawPNG.ellipse((HCenterX-radiusPx,HCenterY-radiusPx,HCenterX+radiusPx,HCenterY+radiusPx),fill=(255,0,0))
                         for i,j in itertools.product(xrange(-3,4),xrange(-3,4)):
-                            houseDrawPNG.text((HCenterX+radiusPx+i,HCenterY-1*radiusPx+j),houseTXT1,fill=TXTBOLDCOLOR,font=TXTFONT)
-                            houseDrawPNG.text((HCenterX+radiusPx+i,HCenterY+1*radiusPx+j),houseTXT2,fill=TXTBOLDCOLOR,font=TXTFONT)
-                            houseDrawPNG.text((HCenterX+radiusPx+i,HCenterY+3*radiusPx+j),houseTXT3,fill=TXTBOLDCOLOR,font=TXTFONT)
-                        houseDrawPNG.text((HCenterX+radiusPx,HCenterY-1*radiusPx),houseTXT1,fill=TXTCOLOR,font=TXTFONT)
-                        houseDrawPNG.text((HCenterX+radiusPx,HCenterY+1*radiusPx),houseTXT2,fill=TXTCOLOR,font=TXTFONT)
-                        houseDrawPNG.text((HCenterX+radiusPx,HCenterY+3*radiusPx),houseTXT3,fill=TXTCOLOR,font=TXTFONT)
+                            houseDrawPNG.text((HCenterX+radiusPx+i,HCenterY-2*radiusPx+j),houseTXT1,fill=TXTBOLDCOLOR,font=TXTFONT)
+                            houseDrawPNG.text((HCenterX+radiusPx+i,HCenterY+0*radiusPx+j),houseTXT2,fill=TXTBOLDCOLOR,font=TXTFONT)
+                            houseDrawPNG.text((HCenterX+radiusPx+i,HCenterY+2*radiusPx+j),houseTXT3,fill=TXTBOLDCOLOR,font=TXTFONT)
+                        houseDrawPNG.text((HCenterX+radiusPx,HCenterY-2*radiusPx),houseTXT1,fill=TXTCOLOR,font=TXTFONT)
+                        houseDrawPNG.text((HCenterX+radiusPx,HCenterY+0*radiusPx),houseTXT2,fill=TXTCOLOR,font=TXTFONT)
+                        houseDrawPNG.text((HCenterX+radiusPx,HCenterY+2*radiusPx),houseTXT3,fill=TXTCOLOR,font=TXTFONT)
                         
                     houseImagePNG.save(imagePath(outputdir,"houses",id,label,"png"),"PNG")
                     houseImagePNG.save(imagePath(outputdir,"houses",id,label,"jpg"),"JPEG")
