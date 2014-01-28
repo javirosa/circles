@@ -24,6 +24,7 @@ signal.signal(signal.SIGINT,signal_handler)
 
 AUTOITPATH = "C:\Program Files (x86)\AutoIt3\AutoIt3.exe"
 IMAGEMAGICKPATH = "C:\Program Files\ImageMagick-6.8.8-Q16\convert.exe"
+IMAGEMAGICKPATH = "C:\Program Files (x86)\ImageMagick-6.8.6-Q16\convert.exe"
 NTHREADS=3
 #offset by 8 because the image isn't in the center
 RENDEROFFSETX = 8
@@ -31,8 +32,8 @@ RENDEROFFSETY = 8
 
 TXTCOLOR = (255,255,255)
 TXTBOLDCOLOR = (0,0,0)
-TXTFONT = ImageFont.truetype("LiberationMono-Regular.ttf",50)
-TXTBOLDFONT = ImageFont.truetype("LiberationMono-Bold.ttf",50)
+TXTFONT = ImageFont.truetype("LiberationMono-Regular.ttf",30)
+TXTBOLDFONT = ImageFont.truetype("LiberationMono-Bold.ttf",30)
 
 #These are not totally correct as they are overly restrictive, but it works for my purposes.
 NTFSWHITELIST = "[A-Za-z0-9~!@#$%^&()_-{},.=[]`']"
@@ -143,9 +144,9 @@ def main():
     args.level = int(args.level)  
     args.input = os.path.abspath(args.input)
     
-    collectionDir = os.path.basename(os.path.args.input) + "."
+    collectionDir = args.input + "."
     dot = collectionDir.index(".")
-    collectionDir = collectionDir[0:dot] + 'out'
+    collectionDir = collectionDir[0:dot]
     collectionDir = sanitize(collectionDir)
     outputdir = os.path.join(args.outputdir,collectionDir)
     
@@ -236,11 +237,11 @@ def main():
             #load associated site file
             with open(args.houses, 'rUb') as f:
                 housePts = csv.reader(f)
-                headerPts = housePts.next()
+                ptsHeader = housePts.next()
                 allPts = list(housePts)
                 
                 for id,label,outputImg,lat,long,siteno,pixels in toLabel:
-                    sitePts = [ x for x in allPts if x[headerPts.index('siteno')] == siteno]
+                    sitePts = [ x for x in allPts if x[ptsHeader.index('siteno')] == siteno]
                     #load output img
                     labeledImg1  = os.path.join(outputdir,"labeled","jpg",'labeled_id[{0}]_label[{1}].{2}'.format(id,label,"jpg"))
                     houseImagePNG = Image.open(labeledImg2)
@@ -248,19 +249,29 @@ def main():
                     
                     #plot site file points on output img and save                    
                     for pt in sitePts:
-                        latH = float(pt[headerPts.index('latitude')])
-                        longH = float(pt[headerPts.index('longitude')])
+                        latH = float(pt[ptsHeader.index('latitude')])
+                        longH = float(pt[ptsHeader.index('longitude')])
+                        row = dict(zip(ptsHeader,pt))
+                        #first	middle	last	common	hhid	guide_first	guide_middle	guide_last	guide_common	guide_phone                        
+                        #HH ID: 11
+                        #HH Name: Robert Musango Oduori (Musango)
+                        #Guide Name: Paul Atoni Makokha (Makokha) / 0719524015
+                        houseTXT1 = "HH ID: {hhid}".format(**row) 
+                        houseTXT2 = "HH Name: {first} {middle} {last} ({common})".format(**row)
+                        houseTXT3 = "Guide Name: {guide_first} {guide_middle} {guide_last} ({guide_common}) / {guide_phone}".format(**row)
+                        
                         centerX,centerY,perimeterX = circleParms(args.radius,lat,pixels,args.level) 
                         HCenterX,HCenterY=GPSToLocalPixels(lat,long,latH,longH,centerX,centerY,args.level)
                         radiusPx = metersToPixels(5,lat,args.level)
                         
-                        houseTXT = "Example Text in 50 pt font"                       
                         houseDrawPNG.ellipse((HCenterX-radiusPx,HCenterY-radiusPx,HCenterX+radiusPx,HCenterY+radiusPx),fill=(255,0,0))
                         for i,j in itertools.product(xrange(-3,4),xrange(-3,4)):
-                            houseDrawPNG.text((HCenterX+radiusPx+i,HCenterY-radiusPx+j),houseTXT,fill=TXTBOLDCOLOR,font=TXTFONT)
-                            #houseDrawPNG.text((HCenterX+radiusPx,HCenterY-radiusPx),houseTXT,fill=TXTBOLDCOLOR,font=TXTBOLDFONT)
-                        houseDrawPNG.text((HCenterX+radiusPx,HCenterY-radiusPx),houseTXT,fill=TXTCOLOR,font=TXTFONT)
-                        
+                            houseDrawPNG.text((HCenterX+radiusPx+i,HCenterY-1*radiusPx+j),houseTXT1,fill=TXTBOLDCOLOR,font=TXTFONT)
+                            houseDrawPNG.text((HCenterX+radiusPx+i,HCenterY+1*radiusPx+j),houseTXT2,fill=TXTBOLDCOLOR,font=TXTFONT)
+                            houseDrawPNG.text((HCenterX+radiusPx+i,HCenterY+3*radiusPx+j),houseTXT3,fill=TXTBOLDCOLOR,font=TXTFONT)
+                        houseDrawPNG.text((HCenterX+radiusPx,HCenterY-1*radiusPx),houseTXT1,fill=TXTCOLOR,font=TXTFONT)
+                        houseDrawPNG.text((HCenterX+radiusPx,HCenterY+1*radiusPx),houseTXT2,fill=TXTCOLOR,font=TXTFONT)
+                        houseDrawPNG.text((HCenterX+radiusPx,HCenterY+3*radiusPx),houseTXT3,fill=TXTCOLOR,font=TXTFONT)
                         
                     houseImagePNG.save(imagePath(outputdir,"houses",id,label,"png"),"PNG")
                     houseImagePNG.save(imagePath(outputdir,"houses",id,label,"jpg"),"JPEG")
