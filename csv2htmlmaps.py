@@ -16,6 +16,7 @@ import uuid
 import PIL.Image as Image
 import PIL.ImageDraw as ImageDraw
 import PIL.ImageFont as ImageFont
+import itertools
 
 def signal_handler(signal,frame):
     sys.exit(1);
@@ -139,11 +140,12 @@ def main():
 
     args = parser.parse_args()
     args.radius = int(args.radius)
-    args.level = int(args.level)
+    args.level = int(args.level)  
+    args.input = os.path.abspath(args.input)
     
-    collectionDir = args.input + "."
+    collectionDir = os.path.basename(os.path.args.input) + "."
     dot = collectionDir.index(".")
-    collectionDir = collectionDir[0:dot]
+    collectionDir = collectionDir[0:dot] + 'out'
     collectionDir = sanitize(collectionDir)
     outputdir = os.path.join(args.outputdir,collectionDir)
     
@@ -154,7 +156,7 @@ def main():
     make_sure_path_exists(os.path.join(outputdir,"houses","jpg"));
     make_sure_path_exists(os.path.join(outputdir,"houses","png"));
     
-    args.input = os.path.abspath(args.input)
+    
     print ("Input file: %s" % args.input )
     print ("Output directory: %s" % outputdir )
 
@@ -254,7 +256,9 @@ def main():
                         
                         houseTXT = "Example Text in 50 pt font"                       
                         houseDrawPNG.ellipse((HCenterX-radiusPx,HCenterY-radiusPx,HCenterX+radiusPx,HCenterY+radiusPx),fill=(255,0,0))
-                        houseDrawPNG.text((HCenterX+radiusPx,HCenterY-radiusPx),houseTXT,fill=TXTBOLDCOLOR,font=TXTBOLDFONT)
+                        for i,j in itertools.product(xrange(-3,4),xrange(-3,4)):
+                            houseDrawPNG.text((HCenterX+radiusPx+i,HCenterY-radiusPx+j),houseTXT,fill=TXTBOLDCOLOR,font=TXTFONT)
+                            #houseDrawPNG.text((HCenterX+radiusPx,HCenterY-radiusPx),houseTXT,fill=TXTBOLDCOLOR,font=TXTBOLDFONT)
                         houseDrawPNG.text((HCenterX+radiusPx,HCenterY-radiusPx),houseTXT,fill=TXTCOLOR,font=TXTFONT)
                         
                         
