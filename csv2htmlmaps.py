@@ -15,17 +15,23 @@ import signal
 import uuid
 import PIL.Image as Image
 import PIL.ImageDraw as ImageDraw
+import PIL.ImageFont as ImageFont
 
 def signal_handler(signal,frame):
     sys.exit(1);
 signal.signal(signal.SIGINT,signal_handler)
 
 AUTOITPATH = "C:\Program Files (x86)\AutoIt3\AutoIt3.exe"
-IMAGEMAGICKPATH = "C:\Program Files (x86)\ImageMagick-6.8.6-Q16\convert.exe"
+IMAGEMAGICKPATH = "C:\Program Files\ImageMagick-6.8.8-Q16\convert.exe"
 NTHREADS=3
 #offset by 8 because the image isn't in the center
 RENDEROFFSETX = 8
 RENDEROFFSETY = 8
+
+TXTCOLOR = (255,255,255)
+TXTBOLDCOLOR = (0,0,0)
+TXTFONT = ImageFont.truetype("LiberationMono-Regular.ttf",50)
+TXTBOLDFONT = ImageFont.truetype("LiberationMono-Bold.ttf",50)
 
 #These are not totally correct as they are overly restrictive, but it works for my purposes.
 NTFSWHITELIST = "[A-Za-z0-9~!@#$%^&()_-{},.=[]`']"
@@ -114,6 +120,9 @@ def circleParms(radius,lat,pixels,level):
 def pixelWidth(radius,lat,level):
     return 2*int(metersToPixels(radius,lat,level))
         
+def imagePath(root,imgClass,id,label,format):
+    return os.path.join(root,imgClass,format,'{3}_id[{0}]_label[{1}].{2}'.format(id,label,format,imgClass))
+    
 def main():
     #print("pxs:{0}".format(metersToPixels(600,0.01,19)))
     parser = argparse.ArgumentParser(description='Script to take coordinates from a CSV input file and output a series of Google Maps HTML files centered on those coordinates')
@@ -142,7 +151,10 @@ def main():
     make_sure_path_exists(outputdir);
     make_sure_path_exists(os.path.join(outputdir,"labeled","jpg"));
     make_sure_path_exists(os.path.join(outputdir,"labeled","png"));
-
+    make_sure_path_exists(os.path.join(outputdir,"houses","jpg"));
+    make_sure_path_exists(os.path.join(outputdir,"houses","png"));
+    
+    args.input = os.path.abspath(args.input)
     print ("Input file: %s" % args.input )
     print ("Output directory: %s" % outputdir )
 
@@ -187,7 +199,7 @@ def main():
                     print('<iframe width="{2}" height="{2}" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?f=q&amp;source=s_q&amp;hl=en&amp;geocode=&amp;q={0},{1}&amp;aq=&amp;sll={0},{1}&amp;sspn=0.002789,0.003664&amp;t=h&amp;ie=UTF8&amp;z={3}&amp;ll={0},{1}&amp;output=embed"></iframe>'.format(lat,long,pixels,args.level),file=out)
                 print('{0}'.format(outputhtml),file=lst)
 
-                outputImg = os.path.abspath(os.path.join(outputdir,'{0}_label[{1}].png'.format(outputprefix,label)))
+                outputImg = os.path.abspath(os.path.join(outputdir,'raw_{0}_label[{1}].png'.format(outputprefix,label)))
                 if (args.skip == 'False') or (not os.path.exists(outputImg)):
                     print("Capturing: \'{0}\'".format(outputhtmlabs))
                     capturePage(outputhtmlabs,outputImg)
@@ -208,8 +220,8 @@ def main():
             if os.path.exists(outputImg):
                 centerX,centerY,perimeterX = circleParms(args.radius,lat,pixels,args.level)
                 
-                labeledImg1  = os.path.join(outputdir,"labeled","jpg",'id[{0}]_label[{1}]_labeled.{2}'.format(id,label,"jpg"))
-                labeledImg2  = os.path.join(outputdir,"labeled","png",'id[{0}]_label[{1}]_labeled.{2}'.format(id,label,"png"))
+                labeledImg1  = imagePath(outputdir,"labeled",id,label,"jpg")
+                labeledImg2  = imagePath(outputdir,"labeled",id,label,"jpg")
                 magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':label,'inname':outputImg,'outname1':labeledImg1,'outname2':labeledImg2,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
                 print(magiccall)
                 thread = subprocess.Popen(magiccall)
@@ -228,11 +240,8 @@ def main():
                 for id,label,outputImg,lat,long,siteno,pixels in toLabel:
                     sitePts = [ x for x in allPts if x[headerPts.index('siteno')] == siteno]
                     #load output img
-                    labeledImg1  = os.path.join(outputdir,"labeled","jpg",'id[{0}]_label[{1}]_labeled.{2}'.format(id,label,"jpg"))
-                    labeledImg2  = os.path.join(outputdir,"labeled","png",'id[{0}]_label[{1}]_labeled.{2}'.format(id,label,"png"))
-                    houseImageJPG = Image.open(labeledImg1)
+                    labeledImg1  = os.path.join(outputdir,"labeled","jpg",'labeled_id[{0}]_label[{1}].{2}'.format(id,label,"jpg"))
                     houseImagePNG = Image.open(labeledImg2)
-                    houseDrawJPG  = ImageDraw.Draw(houseImageJPG)
                     houseDrawPNG  = ImageDraw.Draw(houseImagePNG)
                     
                     #plot site file points on output img and save                    
@@ -242,16 +251,16 @@ def main():
                         centerX,centerY,perimeterX = circleParms(args.radius,lat,pixels,args.level) 
                         HCenterX,HCenterY=GPSToLocalPixels(lat,long,latH,longH,centerX,centerY,args.level)
                         radiusPx = metersToPixels(5,lat,args.level)
-                        houseDrawJPG.ellipse((HCenterX-radiusPx,HCenterY-radiusPx,HCenterX+radiusPx,HCenterY+radiusPx),fill=(255,0,0))
-                        houseDrawPNG.ellipse((HCenterX-radiusPx,HCenterY-radiusPx,HCenterX+radiusPx,HCenterY+radiusPx),fill=(255,0,0))
-                        houseDrawJPG.text((HCenterX-radiusPx,HCenterY-radiusPx,HCenterX+radiusPx,HCenterY+radiusPx),fill=(255,0,0))
-                        houseDrawPNG.ellipse((HCenterX-radiusPx,HCenterY-radiusPx,HCenterX+radiusPx,HCenterY+radiusPx),fill=(255,0,0))
                         
+                        houseTXT = "Example Text in 50 pt font"                       
+                        houseDrawPNG.ellipse((HCenterX-radiusPx,HCenterY-radiusPx,HCenterX+radiusPx,HCenterY+radiusPx),fill=(255,0,0))
+                        houseDrawPNG.text((HCenterX+radiusPx,HCenterY-radiusPx),houseTXT,fill=TXTBOLDCOLOR,font=TXTBOLDFONT)
+                        houseDrawPNG.text((HCenterX+radiusPx,HCenterY-radiusPx),houseTXT,fill=TXTCOLOR,font=TXTFONT)
+                        
+                        
+                    houseImagePNG.save(imagePath(outputdir,"houses",id,label,"png"),"PNG")
+                    houseImagePNG.save(imagePath(outputdir,"houses",id,label,"jpg"),"JPEG")
                     
-                    houseImageJPG.save(os.path.join(outputdir,"labeled","jpg",'id[{0}]_label[{1}]_houses.{2}'.format(id,label,"jpg")))
-                    houseImagePNG.save(os.path.join(outputdir,"labeled","png",'id[{0}]_label[{1}]_houses.{2}'.format(id,label,"png")))
-                        
-                        
 
 if __name__ == "__main__":
         main()
