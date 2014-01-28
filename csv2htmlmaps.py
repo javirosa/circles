@@ -270,11 +270,11 @@ def main():
                         houseDrawPNG.ellipse((HCenterX-radiusPx,HCenterY-radiusPx,HCenterX+radiusPx,HCenterY+radiusPx),fill=(255,0,0))
                         for i,j in itertools.product(xrange(-3,4),xrange(-3,4)):
                             houseDrawPNG.text((HCenterX+radiusPx+i,HCenterY-2*radiusPx+j),houseTXT1,fill=TXTBOLDCOLOR,font=TXTFONT)
-                            houseDrawPNG.text((HCenterX+radiusPx+i,HCenterY+0*radiusPx+j),houseTXT2,fill=TXTBOLDCOLOR,font=TXTFONT)
-                            houseDrawPNG.text((HCenterX+radiusPx+i,HCenterY+2*radiusPx+j),houseTXT3,fill=TXTBOLDCOLOR,font=TXTFONT)
+                            houseDrawPNG.text((HCenterX+radiusPx+i,HCenterY-0.5*radiusPx+j),houseTXT2,fill=TXTBOLDCOLOR,font=TXTFONT)
+                            houseDrawPNG.text((HCenterX+radiusPx+i,HCenterY+1*radiusPx+j),houseTXT3,fill=TXTBOLDCOLOR,font=TXTFONT)
                         houseDrawPNG.text((HCenterX+radiusPx,HCenterY-2*radiusPx),houseTXT1,fill=TXTCOLOR,font=TXTFONT)
-                        houseDrawPNG.text((HCenterX+radiusPx,HCenterY+0*radiusPx),houseTXT2,fill=TXTCOLOR,font=TXTFONT)
-                        houseDrawPNG.text((HCenterX+radiusPx,HCenterY+2*radiusPx),houseTXT3,fill=TXTCOLOR,font=TXTFONT)
+                        houseDrawPNG.text((HCenterX+radiusPx,HCenterY-0.5*radiusPx),houseTXT2,fill=TXTCOLOR,font=TXTFONT)
+                        houseDrawPNG.text((HCenterX+radiusPx,HCenterY+1*radiusPx),houseTXT3,fill=TXTCOLOR,font=TXTFONT)
                         
                     houseImagePNG.save(imagePath(outputdir,"houses",id,label,"png"),"PNG")
                     houseImagePNG.save(imagePath(outputdir,"houses",id,label,"jpg"),"JPEG")
