@@ -37,6 +37,5 @@ nosetests.xml
 *.png
 *.jpg
 *.html
-*.csv
 *.*~
 *~
