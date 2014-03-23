@@ -248,8 +248,7 @@ def main():
                 for id,label,outputImg,lat,long,siteno,pixels in toLabel:
                     sitePts = [ x for x in allPts if x[ptsHeader.index('siteno')] == siteno]
                     #load output img
-                    labeledImg1  = os.path.join(outputdir,"labeled","jpg",'labeled_id[{0}]_label[{1}].{2}'.format(id,label,"jpg"))
-                    houseImagePNG = Image.open(labeledImg2)
+                    houseImagePNG = Image.open(imagePath(outputdir,"labeled",id,label,siteno,"png"))
                     houseDrawPNG  = ImageDraw.Draw(houseImagePNG)
                     
                     radiusPx = metersToPixels(CIRCLERAD,lat,args.level)
