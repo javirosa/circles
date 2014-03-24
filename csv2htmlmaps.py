@@ -18,14 +18,18 @@ import PIL.ImageDraw as ImageDraw
 import PIL.ImageFont as ImageFont
 import itertools
 
+#need to replace capty
+#http://phantomjs.org/
+#http://grabz.it/api/python/
+#http://docs.seleniumhq.org/projects/webdriver/
 
 def signal_handler(signal,frame):
     sys.exit(1);
 signal.signal(signal.SIGINT,signal_handler)
 
 AUTOITPATH = "C:\Program Files (x86)\AutoIt3\AutoIt3.exe"
-#IMAGEMAGICKPATH = "C:\Program Files\ImageMagick-6.8.8-Q16\convert.exe"
-IMAGEMAGICKPATH = "C:\Program Files (x86)\ImageMagick-6.8.6-Q16\convert.exe"
+IMAGEMAGICKPATH = "C:\Program Files\ImageMagick-6.8.8-Q16\convert.exe"
+#IMAGEMAGICKPATH = "C:\Program Files (x86)\ImageMagick-6.8.6-Q16\convert.exe"
 NTHREADS=3
 #offset by 8 because the image isn't in the center
 CIRCLERAD = 8 #meters
