@@ -18,7 +18,13 @@ import PIL.ImageDraw as ImageDraw
 import PIL.ImageFont as ImageFont
 import itertools
 
-#need to replace capty
+#How are we trying to download
+#Change output filename label and id
+#color based on code (blue,red,orange)
+#Add more circles for overlap
+#Arrows to outside of circle
+
+#Need to replace capty
 #http://phantomjs.org/
 #http://grabz.it/api/python/
 #http://docs.seleniumhq.org/projects/webdriver/
@@ -30,12 +36,14 @@ signal.signal(signal.SIGINT,signal_handler)
 AUTOITPATH = "C:\Program Files (x86)\AutoIt3\AutoIt3.exe"
 IMAGEMAGICKPATH = "C:\Program Files\ImageMagick-6.8.8-Q16\convert.exe"
 #IMAGEMAGICKPATH = "C:\Program Files (x86)\ImageMagick-6.8.6-Q16\convert.exe"
-NTHREADS=3
+NTHREADS=1
 #offset by 8 because the image isn't in the center
 CIRCLERAD = 8 #meters
 RENDEROFFSETX = 8 #pixels
 RENDEROFFSETY = 8 #pixels
 
+XFRMRCOLOR=(255,255,0)
+HOUSECOLOR=(255,0,0)
 TXTCOLOR = (255,255,255)
 TXTBOLDCOLOR = (0,0,0)
 TXTFONT = ImageFont.truetype("LiberationMono-Regular.ttf",5*CIRCLERAD)
@@ -108,6 +116,8 @@ def make_sure_path_exists(path):
         if exception.errno != errno.EEXIST:
             raise
 
+#Uses the QT based Capty library. 
+#However it doesn't work for AJAX pages.
 def capturePage(url,outfile):
     c = capty.Capturer(url, outfile)
     c.capture()
@@ -129,10 +139,44 @@ def pixelWidth(radius,lat,level):
     return 2*int(metersToPixels(radius,lat,level))
         
 def imagePath(basepath,imgPrefix,id,label,siteno,format):
-    return os.path.join(basepath,imgPrefix,format,'{2}_{0}.{1}'.format('siteno[{0}]_id[{1}]_label[{2}]'.format(siteno,id,label),format,imgPrefix))
+    return os.path.join(basepath,imgPrefix,format,'{2}_{0}.{1}'.format('siteno[{0}]_label[{2}]_id[{1}]'.format(siteno,id,label),format,imgPrefix))
     
+def get_variable(row,headers,colname,alternative):
+    var = None
+    try:
+        var = sanitize(row[headers.index(colname)]).strip()
+    except ValueError,ve:
+        pass
+    if (not var):
+        return alternative
+    return var
+
+def get_point_label(pt_row,pt_header,fmt_str):
+    non_null_pt_row = list(pt_row)
+    for k,v in enumerate(pt_row):
+        if (not v) or (v.upper().strip() == 'NULL'):
+            non_null_pt_row[k]=""
+    row = dict(zip(pt_header,non_null_pt_row))
+    return fmt_str.format(**row)
+
+#TODO remove these floating point conversions 
+#   All the data should be in the proper format before hand
+def house_parms(housePt,housePtHeader,lat,long,centerX,centerY,level):
+    latH = float(housePt[housePtHeader.index('latitude')])
+    longH = float(housePt[housePtHeader.index('longitude')])
+    HCenterX,HCenterY=GPSToLocalPixels(lat,long,latH,longH,centerX,centerY,level)
+    return latH,longH,HCenterX,HCenterY
+    
+def draw_ellipse(draw_canvas,centerX,centerY,radiusPx,color=(255,255,0)):
+    draw_canvas.ellipse((centerX-radiusPx/2,centerY-radiusPx/2,centerX+radiusPx/2,centerY+radiusPx/2),fill=color)
+
+def draw_text_with_border(draw_canvas,border_width,X,Y,label,txt_color,txt_bold_color,txt_font):
+    for i,j in itertools.product(xrange(-border_width,border_width+1),xrange(-border_width,border_width+1)):
+        draw_canvas.text((X+i,Y+j),label,fill=txt_bold_color,font=txt_font)
+    draw_canvas.text((X,Y),label,fill=txt_color,font=txt_font)
+
 def main():
-    #print("pxs:{0}".format(metersToPixels(600,0.01,19)))
+    #TODO use docopt
     parser = argparse.ArgumentParser(description='Script to take coordinates from a CSV input file and output a series of Google Maps HTML files centered on those coordinates')
     parser.add_argument('-i','--input',help='CSV input filename',default='sites.csv')
     parser.add_argument('-o','--outputdir',
@@ -155,45 +199,34 @@ def main():
     collectionDir = collectionDir[0:dot]
     outputdir = os.path.join(args.outputdir,collectionDir)
     
-    # (should really test if its writeable too)
+    # TODO (should really test if its writeable too)
     make_sure_path_exists(outputdir);
-    make_sure_path_exists(os.path.join(outputdir,"labeled","jpg"));
-    make_sure_path_exists(os.path.join(outputdir,"labeled","png"));
-    make_sure_path_exists(os.path.join(outputdir,"houses","jpg"));
-    make_sure_path_exists(os.path.join(outputdir,"houses","png"));
+    make_sure_path_exists(os.path.join(outputdir,"lbld","jpg"));
+    make_sure_path_exists(os.path.join(outputdir,"lbld","png"));
+    make_sure_path_exists(os.path.join(outputdir,"hshs","jpg"));
+    make_sure_path_exists(os.path.join(outputdir,"hshs","png"));
     
-    
-    print ("Input file: %s" % args.input )
-    print ("Output directory: %s" % outputdir )
+    print("Input file: %s" % args.input)
+    print("Output directory: %s" % outputdir)
 
-    # now read the csv file
+    #READ MASTER CSV FILE
     toLabel = []
     with open(args.input, 'rUb') as f, open(os.path.join(outputdir,'listing.csv'),'w') as lst:
         reader = csv.reader(f)
         try:
             headers = reader.next()
             for row in reader:
-                id = ""
-                try:
-                    id = sanitize(row[headers.index('id')])
-                except ValueError,ve:
-                    id = sanitize(row[headers.index('metainstanceid')])
-                
-                try:
-                    siteno = sanitize(row[headers.index('siteno')])
-                except:
-                    siteno = "None"
-                    
-                label = sanitize(row[headers.index('label')].strip())
-                if (not label):
-                    label=id
+                id = get_variable(row,headers,'id',get_variable(row,headers,'metainstanceid',""))
+                siteno = get_variable(row,headers,'siteno',"None")
+                label = get_variable(row,headers,'label',id)
+                name = get_variable(row,headers,'name',siteno)
                 
                 lat,long = 0.0,0.0
                 try:
                     lat = float(row[headers.index('lat')])
                     long = float(row[headers.index('long')])
                 except ValueError, ve:
-                    print("Skipping",id, "due to invalid geopoint.")
+                    print("Error skipping %s:%s due to invalid geopoint."%(id,label))
                     continue
                 
                 pixels=0
@@ -203,6 +236,7 @@ def main():
                     pixels = int(args.pixels)
                 
                 # use the ID in the filename:
+                #outputprefix is the name of the raw file in directory of basename of the master list input csv
                 outputprefix = 'siteno[{0}]_id[{1}]_label[{2}]'.format(siteno,id,label)
                 outputhtml = '{0}.html'.format(outputprefix)
                 outputhtmlabs = os.path.abspath(os.path.join(outputdir,outputhtml))
@@ -215,13 +249,14 @@ def main():
                 if (args.skip == 'False') or (not os.path.exists(outputImg)):
                     print("Capturing: \'{0}\'".format(outputhtmlabs))
                     capturePage(outputhtmlabs,outputImg)
-                toLabel.append((id,label,outputImg,lat,long,siteno,pixels))
+                toLabel.append((id,label,outputImg,lat,long,siteno,pixels,name))
         except csv.Error as e:
-            sys.exit('file %s, line %d: %s' % (args.input, reader.line_num, e))
+            sys.exit('Error in file %s, line %d: %s' % (args.input, reader.line_num, e))
             
         # Ideally a callback would be used instead of polling the threads continuously
+        # Even better stop using image magick
         threads = []
-        for id,label,outputImg,lat,long,siteno,pixels in toLabel:
+        for id,label,outputImg,lat,long,siteno,pixels,name in toLabel:
             while len(threads) >= NTHREADS:
                 for thread in threads:
                     thread.poll()
@@ -232,10 +267,10 @@ def main():
             if os.path.exists(outputImg):
                 centerX,centerY,perimeterX = circleParms(args.radius,lat,pixels,args.level)
                 
-                labeledImg1  = imagePath(outputdir,"labeled",id,label,siteno,"jpg")
-                labeledImg2  = imagePath(outputdir,"labeled",id,label,siteno,"png")
-                magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':label,'inname':outputImg,'outname1':labeledImg1,'outname2':labeledImg2,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
-                print(magiccall)
+                labeledImg1  = imagePath(outputdir,"lbld",id,name,siteno,"jpg")
+                labeledImg2  = imagePath(outputdir,"lbld",id,name,siteno,"png")
+                magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':name,'inname':outputImg,'outname1':labeledImg1,'outname2':labeledImg2,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
+                print("Boundary %s processing."%siteno)
                 thread = subprocess.Popen(magiccall)
                 threads.append(thread)
         for thread in threads:
@@ -249,49 +284,37 @@ def main():
                 ptsHeader = housePts.next()
                 allPts = list(housePts)
                 
-                for id,label,outputImg,lat,long,siteno,pixels in toLabel:
-                    sitePts = [ x for x in allPts if x[ptsHeader.index('siteno')] == siteno]
+                #TODO why can't I just make the dict from siteNoGrps?
+                allPts.sort(key=lambda x:x[ptsHeader.index('siteno')]) 
+                siteNoGrps=itertools.groupby(allPts, lambda x: x[ptsHeader.index('siteno')])
+                siteNoDict = {}
+                for siteno,grp in siteNoGrps:
+                    siteNoDict[siteno]=list(grp)
+                
+                for id,label,outputImg,lat,long,siteno,pixels,name in toLabel:
                     #load output img
-                    houseImagePNG = Image.open(imagePath(outputdir,"labeled",id,label,siteno,"png"))
+                    houseImagePNG = Image.open(imagePath(outputdir,"lbld",id,name,siteno,"png"))
                     houseDrawPNG  = ImageDraw.Draw(houseImagePNG)
-                    
                     radiusPx = metersToPixels(CIRCLERAD,lat,args.level)
-                    centerX,centerY,_ = circleParms(args.radius,lat,pixels,args.level) 
-                    houseDrawPNG.ellipse((centerX-radiusPx/2,centerY-radiusPx/2,centerX+radiusPx/2,centerY+radiusPx/2),fill=(255,255,0))
-
-                    #plot site file points on output img and save                    
-                    for pt in sitePts:
-                        latH = float(pt[ptsHeader.index('latitude')])
-                        longH = float(pt[ptsHeader.index('longitude')])
-                        for k,v in enumerate(pt):
-                            if (not v) or (v.upper().strip() == 'NULL'):
-                                pt[k]=""
-                        row = dict(zip(ptsHeader,pt))
-
-                        HCenterX,HCenterY=GPSToLocalPixels(lat,long,latH,longH,centerX,centerY,args.level)
-                        houseTXT2 = "{first} {middle} {last} ({common})".format(**row)
-                        for i,j in itertools.product(xrange(-3,4),xrange(-3,4)):
-                            houseDrawPNG.text((HCenterX+(1.1)*radiusPx+i,HCenterY +(-.9)*radiusPx+j),houseTXT2,fill=TXTBOLDCOLOR,font=TXTFONT)
-                        houseDrawPNG.text((HCenterX+(1.1)*radiusPx,HCenterY+(-.9)*radiusPx),houseTXT2,fill=TXTCOLOR,font=TXTFONT)
-                        
-                    for pt in sitePts:
-                        latH = float(pt[ptsHeader.index('latitude')])
-                        longH = float(pt[ptsHeader.index('longitude')])
-                        for k,v in enumerate(pt):
-                            if (not v) or (v.upper().strip() == 'NULL'):
-                                pt[k]=""
-                        row = dict(zip(ptsHeader,pt))
-
-                        HCenterX,HCenterY=GPSToLocalPixels(lat,long,latH,longH,centerX,centerY,args.level)
-                        houseN = "{hhid}".format(**row) #"ID: {hhid}".format(**row)                         
-                        houseDrawPNG.ellipse((HCenterX-radiusPx,HCenterY-radiusPx,HCenterX+radiusPx,HCenterY+radiusPx),fill=(255,0,0))
-                        for i,j in itertools.product(xrange(-3,4),xrange(-3,4)):
-                            houseDrawPNG.text((HCenterX+(-.9)*radiusPx+i,HCenterY+(-.9)*radiusPx+j),houseN,fill=TXTBOLDCOLOR,font=TXTFONT)
-                        houseDrawPNG.text((HCenterX+ (-.9)*radiusPx,HCenterY+(-.9)*radiusPx),houseN,fill=TXTCOLOR,font=TXTFONT)
-                        
-                    houseImagePNG.save(imagePath(outputdir,"houses",id,label,siteno,"png"),"PNG")
-                    houseImagePNG.save(imagePath(outputdir,"houses",id,label,siteno,"jpg"),"JPEG")
+                    centerX,centerY,_ = circleParms(args.radius,lat,pixels,args.level)
                     
-
+                    #Transformer location
+                    draw_ellipse(houseDrawPNG,centerX,centerY,radiusPx,XFRMRCOLOR)  
+                    sitePts = siteNoDict[siteno]
+                    #Plot housenames
+                    for pt in sitePts:
+                        pt_label = get_point_label(pt,ptsHeader,"{first} {middle} {last} ({common})")
+                        latH,longH,HCenterX,HCenterY=house_parms(pt,ptsHeader,lat,long,centerX,centerY,args.level)
+                        draw_text_with_border(houseDrawPNG,3,HCenterX+(1.1)*radiusPx,HCenterY +(-.9)*radiusPx,pt_label,TXTCOLOR,TXTBOLDCOLOR,TXTFONT)
+                    #Plot second to ensure that numbers are above anything else
+                    for pt in sitePts:
+                        pt_label = get_point_label(pt,ptsHeader,"{hhid}")
+                        latH,longH,HCenterX,HCenterY=house_parms(pt,ptsHeader,lat,long,centerX,centerY,args.level)
+                        draw_ellipse(houseDrawPNG,HCenterX,HCenterY,2*radiusPx,HOUSECOLOR)
+                        draw_text_with_border(houseDrawPNG,3,HCenterX+ (-.9)*radiusPx,HCenterY+(-.9)*radiusPx,pt_label,TXTCOLOR,TXTBOLDCOLOR,TXTFONT)
+                        
+                    houseImagePNG.save(imagePath(outputdir,"hshs",id,name,siteno,"png"),"PNG")
+                    houseImagePNG.save(imagePath(outputdir,"hshs",id,name,siteno,"jpg"),"JPEG")
+                    
 if __name__ == "__main__":
         main()

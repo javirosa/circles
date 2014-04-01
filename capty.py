@@ -68,7 +68,7 @@ class Capturer(object):
 
     def doCapture(self):
         self.wb.setViewportSize(self.wb.mainFrame().contentsSize())
-        time.sleep(120)
+        #time.sleep(120)
         img = QtGui.QImage(self.wb.viewportSize(), QtGui.QImage.Format_ARGB32)
         print str(self.wb.viewportSize())+"...",
         print "Creating Painter...",
