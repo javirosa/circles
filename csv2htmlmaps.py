@@ -18,6 +18,10 @@ import PIL.ImageDraw as ImageDraw
 import PIL.ImageFont as ImageFont
 import itertools
 
+#sites
+#site
+#house
+
 #How are we trying to download
 #Change output filename label and id
 #color based on code (blue,red,orange)
@@ -33,7 +37,6 @@ def signal_handler(signal,frame):
     sys.exit(1);
 signal.signal(signal.SIGINT,signal_handler)
 
-AUTOITPATH = "C:\Program Files (x86)\AutoIt3\AutoIt3.exe"
 IMAGEMAGICKPATH = "C:\Program Files\ImageMagick-6.8.8-Q16\convert.exe"
 #IMAGEMAGICKPATH = "C:\Program Files (x86)\ImageMagick-6.8.6-Q16\convert.exe"
 NTHREADS=1
@@ -73,6 +76,7 @@ IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "\"{0[inname]}\" -write \"{0[outname1]}\" 
 #For capturepage
 app = QtGui.QApplication(sys.argv)
 
+#Ensures that file names are cross platform compatible.
 def sanitize(name):
     out = ""
     for c in name:
@@ -80,6 +84,16 @@ def sanitize(name):
             c = hex(ord(c))
         out += str(c)
     return out
+
+def make_sure_path_exists(path):
+    try:
+        os.makedirs(path)
+    except OSError as exception:
+        if exception.errno != errno.EEXIST:
+            raise
+
+def imagePath(basepath,imgPrefix,id,label,siteno,format):
+    return os.path.join(basepath,imgPrefix,format,'{2}_{0}.{1}'.format('siteno[{0}]_label[{2}]_id[{1}]'.format(siteno,id,label),format,imgPrefix))
     
 #Ref: http://msdn.microsoft.com/en-us/library/bb259689.aspx
 def metersToPixels(meters,lat,level):
@@ -96,8 +110,8 @@ def GPSToPixels(lat,long,level):
     pixelY = (0.5 - math.log((1 + sinLat)/(1 - sinLat)) / (4 * math.pi))*mapSize
     return (pixelX,pixelY)
     
-#Given the center lat0/long0 and it's local pixel position X0,Y0 find the local pixel position of lat1,long1
-def GPSToLocalPixels(lat0,long0,lat1,long1,X0,Y0,level):
+#Given the center lat0/long0 and it's map pixel position X0,Y0 find the map pixel position of lat1,long1
+def GPSToMapPixels(lat0,long0,lat1,long1,X0,Y0,level):
     #find global pixel coordinates of location 0 and location 1
     globalX0,globalY0=GPSToPixels(lat0,long0,level)
     globalX1,globalY1=GPSToPixels(lat1,long1,level)
@@ -106,22 +120,6 @@ def GPSToLocalPixels(lat0,long0,lat1,long1,X0,Y0,level):
     globalXDiff = globalX1-globalX0
     globalYDiff = globalY1-globalY0
     return X0+globalXDiff,Y0+globalYDiff
-
-# avoids race condition of directory being created between a check for
-# its existence and then its creation:
-def make_sure_path_exists(path):
-    try:
-        os.makedirs(path)
-    except OSError as exception:
-        if exception.errno != errno.EEXIST:
-            raise
-
-#Uses the QT based Capty library. 
-#However it doesn't work for AJAX pages.
-def capturePage(url,outfile):
-    c = capty.Capturer(url, outfile)
-    c.capture()
-    app.exec_()
     
 #NOTE pixels is reused for strokewidth and to get the center of the image
 def circleParms(radius,lat,pixels,level):
@@ -137,10 +135,7 @@ def circleParms(radius,lat,pixels,level):
 #TODO is it most accurate to turn it into an int before or after the multiply by 2?
 def pixelWidth(radius,lat,level):
     return 2*int(metersToPixels(radius,lat,level))
-        
-def imagePath(basepath,imgPrefix,id,label,siteno,format):
-    return os.path.join(basepath,imgPrefix,format,'{2}_{0}.{1}'.format('siteno[{0}]_label[{2}]_id[{1}]'.format(siteno,id,label),format,imgPrefix))
-    
+            
 def get_variable(row,headers,colname,alternative):
     var = None
     try:
@@ -159,12 +154,19 @@ def get_point_label(pt_row,pt_header,fmt_str):
     row = dict(zip(pt_header,non_null_pt_row))
     return fmt_str.format(**row)
 
+#Uses the QT based Capty library. 
+#However it doesn't work for AJAX pages.
+def capturePage(url,outfile):
+    c = capty.Capturer(url, outfile)
+    c.capture()
+    app.exec_()
+    
 #TODO remove these floating point conversions 
 #   All the data should be in the proper format before hand
 def house_parms(housePt,housePtHeader,lat,long,centerX,centerY,level):
     latH = float(housePt[housePtHeader.index('latitude')])
     longH = float(housePt[housePtHeader.index('longitude')])
-    HCenterX,HCenterY=GPSToLocalPixels(lat,long,latH,longH,centerX,centerY,level)
+    HCenterX,HCenterY=GPSToMapPixels(lat,long,latH,longH,centerX,centerY,level)
     return latH,longH,HCenterX,HCenterY
     
 def draw_ellipse(draw_canvas,centerX,centerY,radiusPx,color=(255,255,0)):
@@ -245,18 +247,18 @@ def main():
                     print('<iframe width="{2}" height="{2}" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?f=q&amp;source=s_q&amp;hl=en&amp;geocode=&amp;q={0},{1}&amp;aq=&amp;sll={0},{1}&amp;sspn=0.002789,0.003664&amp;t=h&amp;ie=UTF8&amp;z={3}&amp;ll={0},{1}&amp;output=embed"></iframe>'.format(lat,long,pixels,args.level),file=out)
                 print('{0}'.format(outputhtml),file=lst)
 
-                outputImg = os.path.abspath(os.path.join(outputdir,'raw_{0}.png'.format(outputprefix)))
-                if (args.skip == 'False') or (not os.path.exists(outputImg)):
+                rawMap = os.path.abspath(os.path.join(outputdir,'raw_{0}.png'.format(outputprefix)))
+                if (args.skip == 'False') or (not os.path.exists(rawMap)):
                     print("Capturing: \'{0}\'".format(outputhtmlabs))
-                    capturePage(outputhtmlabs,outputImg)
-                toLabel.append((id,label,outputImg,lat,long,siteno,pixels,name))
+                    capturePage(outputhtmlabs,rawMap)
+                toLabel.append((id,label,rawMap,lat,long,siteno,pixels,name))
         except csv.Error as e:
             sys.exit('Error in file %s, line %d: %s' % (args.input, reader.line_num, e))
             
         # Ideally a callback would be used instead of polling the threads continuously
         # Even better stop using image magick
         threads = []
-        for id,label,outputImg,lat,long,siteno,pixels,name in toLabel:
+        for id,label,rawMap,lat,long,siteno,pixels,name in toLabel:
             while len(threads) >= NTHREADS:
                 for thread in threads:
                     thread.poll()
@@ -264,12 +266,12 @@ def main():
                 time.sleep(.100)
 
             #call imagemagick to annotate the file
-            if os.path.exists(outputImg):
+            if os.path.exists(rawMap):
                 centerX,centerY,perimeterX = circleParms(args.radius,lat,pixels,args.level)
                 
                 labeledImg1  = imagePath(outputdir,"lbld",id,name,siteno,"jpg")
                 labeledImg2  = imagePath(outputdir,"lbld",id,name,siteno,"png")
-                magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':name,'inname':outputImg,'outname1':labeledImg1,'outname2':labeledImg2,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
+                magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':name,'inname':rawMap,'outname1':labeledImg1,'outname2':labeledImg2,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
                 print("Boundary %s processing."%siteno)
                 thread = subprocess.Popen(magiccall)
                 threads.append(thread)
@@ -291,7 +293,7 @@ def main():
                 for siteno,grp in siteNoGrps:
                     siteNoDict[siteno]=list(grp)
                 
-                for id,label,outputImg,lat,long,siteno,pixels,name in toLabel:
+                for id,label,rawMap,lat,long,siteno,pixels,name in toLabel:
                     #load output img
                     houseImagePNG = Image.open(imagePath(outputdir,"lbld",id,name,siteno,"png"))
                     houseDrawPNG  = ImageDraw.Draw(houseImagePNG)
