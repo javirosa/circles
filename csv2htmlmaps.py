@@ -38,8 +38,6 @@ def signal_handler(signal,frame):
 signal.signal(signal.SIGINT,signal_handler)
 
 IMAGEMAGICKPATH = "C:\Program Files\ImageMagick-6.8.8-Q16\convert.exe"
-#IMAGEMAGICKPATH = "C:\Program Files (x86)\ImageMagick-6.8.6-Q16\convert.exe"
-NTHREADS=1
 #offset by 8 because the image isn't in the center
 CIRCLERAD = 8 #meters
 RENDEROFFSETX = 8 #pixels
@@ -49,7 +47,10 @@ XFRMRCOLOR=(255,255,0)
 HOUSECOLOR=(255,0,0)
 TXTCOLOR = (255,255,255)
 TXTBOLDCOLOR = (0,0,0)
+TXTSITELABELCOLOR = (0,0,0)
+TXTBORDERWIDTH = 3
 TXTFONT = ImageFont.truetype("LiberationMono-Regular.ttf",5*CIRCLERAD)
+TXTSITEFONT = ImageFont.truetype("LiberationMono-Regular.ttf",256)
 TXTBOLDFONT = ImageFont.truetype("LiberationMono-Bold.ttf",5*CIRCLERAD)
 
 #These are not totally correct as they are overly restrictive, but it works for my purposes.
@@ -64,10 +65,9 @@ BLACKLIST = "".join(set(BLACKLIST))
 OUTOFBOUNDSCOLR = "#4004"
 
 #TODO Convert these into lists so that we can later call convert in linux. Right now this causes errors when using POpen. Windows has errors when using POpen with shell=true
-IMTEXT = " -extent 0x{0[withtextbottom]} -font Arial -pointsize 256 -fill black -strokewidth 1 -stroke black -draw \"text 0,{0[mapbottom]} \'{0[label]}\'\" "
-#IMPARMTEXT = "  -font Arial -pointsize 24 -fill black -strokewidth 1 -stroke black -draw \"text 0,{0[mapbottom]} \'{0[label]}\'\" "
+IMTEXT = " -extent 0x{0[withtextbottom]} "
 IMCIRCLE = " -fill none -strokewidth {0[strokewidth]} -stroke #4004 -draw \"circle {0[centerX]},{0[centerY]} {0[perimeterX]},{0[centerY]}\" " 
-IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "\"{0[inname]}\" -write \"{0[outname1]}\" \"{0[outname2]}\""
+IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "\"{0[inname]}\" \"{0[outname1]}\" "
 
 #w/2+strokewidth/2+r
 #the above requires a label infile and outfile to be present in the format dictionary. 
@@ -169,10 +169,10 @@ def house_parms(housePt,housePtHeader,lat,long,centerX,centerY,level):
     HCenterX,HCenterY=GPSToMapPixels(lat,long,latH,longH,centerX,centerY,level)
     return latH,longH,HCenterX,HCenterY
     
-def draw_ellipse(draw_canvas,centerX,centerY,radiusPx,color=(255,255,0)):
+def draw_disk(draw_canvas,centerX,centerY,radiusPx,color=(255,255,0)):
     draw_canvas.ellipse((centerX-radiusPx/2,centerY-radiusPx/2,centerX+radiusPx/2,centerY+radiusPx/2),fill=color)
 
-def draw_text_with_border(draw_canvas,border_width,X,Y,label,txt_color,txt_bold_color,txt_font):
+def draw_text_with_border(draw_canvas,border_width,X,Y,label,txt_font,txt_color,txt_bold_color):
     for i,j in itertools.product(xrange(-border_width,border_width+1),xrange(-border_width,border_width+1)):
         draw_canvas.text((X+i,Y+j),label,fill=txt_bold_color,font=txt_font)
     draw_canvas.text((X,Y),label,fill=txt_color,font=txt_font)
@@ -214,10 +214,10 @@ def main():
     #READ MASTER CSV FILE
     toLabel = []
     with open(args.input, 'rUb') as f, open(os.path.join(outputdir,'listing.csv'),'w') as lst:
-        reader = csv.reader(f)
+        master = csv.reader(f)
         try:
-            headers = reader.next()
-            for row in reader:
+            headers = master.next()
+            for row in master:
                 id = get_variable(row,headers,'id',get_variable(row,headers,'metainstanceid',""))
                 siteno = get_variable(row,headers,'siteno',"None")
                 label = get_variable(row,headers,'label',id)
@@ -239,6 +239,7 @@ def main():
                 
                 # use the ID in the filename:
                 #outputprefix is the name of the raw file in directory of basename of the master list input csv
+                # TODO should actually use the same naming scheme as the other images. i.e. use the imagepath function
                 outputprefix = 'siteno[{0}]_id[{1}]_label[{2}]'.format(siteno,id,label)
                 outputhtml = '{0}.html'.format(outputprefix)
                 outputhtmlabs = os.path.abspath(os.path.join(outputdir,outputhtml))
@@ -257,43 +258,48 @@ def main():
             
         # Ideally a callback would be used instead of polling the threads continuously
         # Even better stop using image magick
-        threads = []
         for id,label,rawMap,lat,long,siteno,pixels,name in toLabel:
-            while len(threads) >= NTHREADS:
-                for thread in threads:
-                    thread.poll()
-                threads = [thread for thread in threads if thread.returncode == None]
-                time.sleep(.100)
-
             #call imagemagick to annotate the file
             if os.path.exists(rawMap):
                 centerX,centerY,perimeterX = circleParms(args.radius,lat,pixels,args.level)
-                
-                labeledImg1  = imagePath(outputdir,"lbld",id,name,siteno,"jpg")
                 labeledImg2  = imagePath(outputdir,"lbld",id,name,siteno,"png")
-                magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'label':name,'inname':rawMap,'outname1':labeledImg1,'outname2':labeledImg2,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
+                magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'inname':rawMap,'outname1':labeledImg2,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
+
                 print("Boundary %s processing."%siteno)
                 thread = subprocess.Popen(magiccall)
-                threads.append(thread)
-        for thread in threads:
-            thread.wait()
+                thread.wait()
+        
+        for id,label,rawMap,lat,long,siteno,pixels,name in toLabel:
+            if os.path.exists(rawMap):
+                labeledImg1  = imagePath(outputdir,"lbld",id,name,siteno,"jpg")
+                labeledImg2  = imagePath(outputdir,"lbld",id,name,siteno,"png")
+                labelImagePNG = Image.open(labeledImg2)
+                labelDrawPNG  = ImageDraw.Draw(labelImagePNG)
+                X,Y=0,int(pixels)+RENDEROFFSETY
+                draw_text_with_border(labelDrawPNG,0,X,Y,name,TXTSITEFONT,TXTSITELABELCOLOR,TXTSITELABELCOLOR)
+                labelImagePNG.save(labeledImg2,"PNG")                
+                labelImagePNG.save(labeledImg1,"JPEG")   
         
         #Plot house coordinates
         if args.houses:
-            #load associated site file
+            #PLAN load houses
             with open(args.houses, 'rUb') as f:
                 housePts = csv.reader(f)
                 ptsHeader = housePts.next()
-                allPts = list(housePts)
                 
+                #PLAN associate site with houses
                 #TODO why can't I just make the dict from siteNoGrps?
+                allPts = list(housePts)
                 allPts.sort(key=lambda x:x[ptsHeader.index('siteno')]) 
                 siteNoGrps=itertools.groupby(allPts, lambda x: x[ptsHeader.index('siteno')])
                 siteNoDict = {}
                 for siteno,grp in siteNoGrps:
                     siteNoDict[siteno]=list(grp)
                 
+                #PLAN have each site have its house data
+                #PLAN have each site draw its house data onto the siteMap
                 for id,label,rawMap,lat,long,siteno,pixels,name in toLabel:
+                    sitePts = siteNoDict[siteno]
                     #load output img
                     houseImagePNG = Image.open(imagePath(outputdir,"lbld",id,name,siteno,"png"))
                     houseDrawPNG  = ImageDraw.Draw(houseImagePNG)
@@ -301,19 +307,18 @@ def main():
                     centerX,centerY,_ = circleParms(args.radius,lat,pixels,args.level)
                     
                     #Transformer location
-                    draw_ellipse(houseDrawPNG,centerX,centerY,radiusPx,XFRMRCOLOR)  
-                    sitePts = siteNoDict[siteno]
+                    draw_disk(houseDrawPNG,centerX,centerY,radiusPx,XFRMRCOLOR)  
                     #Plot housenames
                     for pt in sitePts:
                         pt_label = get_point_label(pt,ptsHeader,"{first} {middle} {last} ({common})")
                         latH,longH,HCenterX,HCenterY=house_parms(pt,ptsHeader,lat,long,centerX,centerY,args.level)
-                        draw_text_with_border(houseDrawPNG,3,HCenterX+(1.1)*radiusPx,HCenterY +(-.9)*radiusPx,pt_label,TXTCOLOR,TXTBOLDCOLOR,TXTFONT)
+                        draw_text_with_border(houseDrawPNG,3,HCenterX+(1.1)*radiusPx,HCenterY +(-.9)*radiusPx,pt_label,TXTFONT,TXTCOLOR,TXTBOLDCOLOR)
                     #Plot second to ensure that numbers are above anything else
                     for pt in sitePts:
                         pt_label = get_point_label(pt,ptsHeader,"{hhid}")
                         latH,longH,HCenterX,HCenterY=house_parms(pt,ptsHeader,lat,long,centerX,centerY,args.level)
-                        draw_ellipse(houseDrawPNG,HCenterX,HCenterY,2*radiusPx,HOUSECOLOR)
-                        draw_text_with_border(houseDrawPNG,3,HCenterX+ (-.9)*radiusPx,HCenterY+(-.9)*radiusPx,pt_label,TXTCOLOR,TXTBOLDCOLOR,TXTFONT)
+                        draw_disk(houseDrawPNG,HCenterX,HCenterY,2*radiusPx,HOUSECOLOR)
+                        draw_text_with_border(houseDrawPNG,TXTBORDERWIDTH,HCenterX+ (-.9)*radiusPx,HCenterY+(-.9)*radiusPx,pt_label,TXTFONT,TXTCOLOR,TXTBOLDCOLOR)
                         
                     houseImagePNG.save(imagePath(outputdir,"hshs",id,name,siteno,"png"),"PNG")
                     houseImagePNG.save(imagePath(outputdir,"hshs",id,name,siteno,"jpg"),"JPEG")
