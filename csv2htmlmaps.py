@@ -18,13 +18,17 @@ import PIL.ImageDraw as ImageDraw
 import PIL.ImageFont as ImageFont
 import itertools
 
+#Modularize
 #sites
 #site
 #house
+#time tracker
+#Have house plotter 
+#Site plotter which adds label and transformer
 
+#TODO
 #How are we trying to download
-#Change output filename label and id
-#color based on code (blue,red,orange)
+#Color based on code (blue,red,orange)
 #Add more circles for overlap
 #Arrows to outside of circle
 
@@ -33,12 +37,15 @@ import itertools
 #http://grabz.it/api/python/
 #http://docs.seleniumhq.org/projects/webdriver/
 
+#Make ellipse draw transparent red ring
+#Extend image
+#Ideally each site, including house plots, should be done at the same time, instead of loading and saving twice.
+
 def signal_handler(signal,frame):
     sys.exit(1);
 signal.signal(signal.SIGINT,signal_handler)
 
 IMAGEMAGICKPATH = "C:\Program Files\ImageMagick-6.8.8-Q16\convert.exe"
-#offset by 8 because the image isn't in the center
 CIRCLERAD = 8 #meters
 RENDEROFFSETX = 8 #pixels
 RENDEROFFSETY = 8 #pixels
@@ -51,7 +58,6 @@ TXTSITELABELCOLOR = (0,0,0)
 TXTBORDERWIDTH = 3
 TXTFONT = ImageFont.truetype("LiberationMono-Regular.ttf",5*CIRCLERAD)
 TXTSITEFONT = ImageFont.truetype("LiberationMono-Regular.ttf",256)
-TXTBOLDFONT = ImageFont.truetype("LiberationMono-Bold.ttf",5*CIRCLERAD)
 
 #These are not totally correct as they are overly restrictive, but it works for my purposes.
 NTFSWHITELIST = "[A-Za-z0-9~!@#$%^&()_-{},.=[]`']"
@@ -68,11 +74,8 @@ OUTOFBOUNDSCOLR = "#4004"
 IMTEXT = " -extent 0x{0[withtextbottom]} "
 IMCIRCLE = " -fill none -strokewidth {0[strokewidth]} -stroke #4004 -draw \"circle {0[centerX]},{0[centerY]} {0[perimeterX]},{0[centerY]}\" " 
 IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "\"{0[inname]}\" \"{0[outname1]}\" "
-
 #w/2+strokewidth/2+r
-#the above requires a label infile and outfile to be present in the format dictionary. 
 
-#2009
 #For capturepage
 app = QtGui.QApplication(sys.argv)
 
@@ -186,15 +189,18 @@ def main():
                         default=os.getcwd(),required=False)
     parser.add_argument('-p','--pixels',help='# of pixels for iframe (in each dimension). Use \'X\' or leave blank if you would like the dimensions to match the radius.',
                         default='X', required=False);
-    parser.add_argument('-r','--radius',default=650,help='radius in meters of off limites circle.')
+    parser.add_argument('-r','--radius',default=650,help='radius in meters of off limits circle.')
     parser.add_argument('-l','--level',default=19,help='google maps zoom level')
-    parser.add_argument('-s','--skip',default='False',help='skip downloading unlabeled maps if already downloaded.')
+    parser.add_argument('-s','--skip',default='true',help='skip downloading unlabeled maps if already downloaded.')
     parser.add_argument('-H','--houses',default=None,help='plot houses file.')
+    parser.add_argument('-c','--png',default='false',help='Use pngs for all labeled sites and house plots instead of just for raw maps.')
 
     args = parser.parse_args()
     args.radius = int(args.radius)
     args.level = int(args.level)  
     args.input = os.path.abspath(args.input)
+    args.png = args.png.lower() =='true' 
+    args.skip = args.skip.lower() =='true' 
     
     collectionDir = args.input + "."
     dot = collectionDir.index(".")
@@ -204,9 +210,10 @@ def main():
     # TODO (should really test if its writeable too)
     make_sure_path_exists(outputdir);
     make_sure_path_exists(os.path.join(outputdir,"lbld","jpg"));
-    make_sure_path_exists(os.path.join(outputdir,"lbld","png"));
     make_sure_path_exists(os.path.join(outputdir,"hshs","jpg"));
-    make_sure_path_exists(os.path.join(outputdir,"hshs","png"));
+    if args.png:
+        make_sure_path_exists(os.path.join(outputdir,"lbld","png"));
+        make_sure_path_exists(os.path.join(outputdir,"hshs","png"));
     
     print("Input file: %s" % args.input)
     print("Output directory: %s" % outputdir)
@@ -256,30 +263,39 @@ def main():
         except csv.Error as e:
             sys.exit('Error in file %s, line %d: %s' % (args.input, reader.line_num, e))
             
-        # Ideally a callback would be used instead of polling the threads continuously
-        # Even better stop using image magick
+        startToLabel = time.time()
+        timeToLabel = 60
+        doneLabel=0
         for id,label,rawMap,lat,long,siteno,pixels,name in toLabel:
-            #call imagemagick to annotate the file
             if os.path.exists(rawMap):
                 centerX,centerY,perimeterX = circleParms(args.radius,lat,pixels,args.level)
-                labeledImg2  = imagePath(outputdir,"lbld",id,name,siteno,"png")
+                labeledImg2  = imagePath(outputdir,"lbld",id,name,siteno,"jpg")
+                if args.png:
+                    labeledImg2  = imagePath(outputdir,"lbld",id,name,siteno,"png")
                 magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'inname':rawMap,'outname1':labeledImg2,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
 
-                print("Boundary %s processing."%siteno)
+                print("Boundary %s processing. %d minutes remaining for boundary processing."%(siteno,(len(toLabel)-doneLabel)*(timeToLabel)/60.0))
                 thread = subprocess.Popen(magiccall)
                 thread.wait()
-        
+                timeToLabel = time.time()-startToLabel
+                startToLabel = time.time()
+                doneLabel=doneLabel+1
+
         for id,label,rawMap,lat,long,siteno,pixels,name in toLabel:
             if os.path.exists(rawMap):
-                labeledImg1  = imagePath(outputdir,"lbld",id,name,siteno,"jpg")
-                labeledImg2  = imagePath(outputdir,"lbld",id,name,siteno,"png")
-                labelImagePNG = Image.open(labeledImg2)
+                labeledJPG  = imagePath(outputdir,"lbld",id,name,siteno,"jpg")
+                labeledPNG  = imagePath(outputdir,"lbld",id,name,siteno,"png")
+                labeledInput = labeledJPG
+                if args.png:
+                    labeledInput = labeledPNG
+                labelImagePNG = Image.open(labeledInput)
                 labelDrawPNG  = ImageDraw.Draw(labelImagePNG)
                 X,Y=0,int(pixels)+RENDEROFFSETY
                 draw_text_with_border(labelDrawPNG,0,X,Y,name,TXTSITEFONT,TXTSITELABELCOLOR,TXTSITELABELCOLOR)
-                labelImagePNG.save(labeledImg2,"PNG")                
-                labelImagePNG.save(labeledImg1,"JPEG")   
-        
+                if args.png:
+                    labelImagePNG.save(labeledPNG,"PNG")
+                labelImagePNG.save(labeledJPG,"JPEG")
+                              
         #Plot house coordinates
         if args.houses:
             #PLAN load houses
@@ -301,27 +317,30 @@ def main():
                 for id,label,rawMap,lat,long,siteno,pixels,name in toLabel:
                     sitePts = siteNoDict[siteno]
                     #load output img
-                    houseImagePNG = Image.open(imagePath(outputdir,"lbld",id,name,siteno,"png"))
-                    houseDrawPNG  = ImageDraw.Draw(houseImagePNG)
+                    labeledImage = imagePath(outputdir,"lbld",id,name,siteno,"jpg")
+                    if args.png:
+                        labeledImage = imagePath(outputdir,"lbld",id,name,siteno,"png")
+                    houseImage = Image.open(labeledImage)
+                    houseDraw  = ImageDraw.Draw(houseImage)
                     radiusPx = metersToPixels(CIRCLERAD,lat,args.level)
                     centerX,centerY,_ = circleParms(args.radius,lat,pixels,args.level)
                     
                     #Transformer location
-                    draw_disk(houseDrawPNG,centerX,centerY,radiusPx,XFRMRCOLOR)  
+                    draw_disk(houseDraw,centerX,centerY,radiusPx,XFRMRCOLOR)  
                     #Plot housenames
                     for pt in sitePts:
                         pt_label = get_point_label(pt,ptsHeader,"{first} {middle} {last} ({common})")
                         latH,longH,HCenterX,HCenterY=house_parms(pt,ptsHeader,lat,long,centerX,centerY,args.level)
-                        draw_text_with_border(houseDrawPNG,3,HCenterX+(1.1)*radiusPx,HCenterY +(-.9)*radiusPx,pt_label,TXTFONT,TXTCOLOR,TXTBOLDCOLOR)
+                        draw_text_with_border(houseDraw,3,HCenterX+(1.1)*radiusPx,HCenterY +(-.9)*radiusPx,pt_label,TXTFONT,TXTCOLOR,TXTBOLDCOLOR)
                     #Plot second to ensure that numbers are above anything else
                     for pt in sitePts:
                         pt_label = get_point_label(pt,ptsHeader,"{hhid}")
                         latH,longH,HCenterX,HCenterY=house_parms(pt,ptsHeader,lat,long,centerX,centerY,args.level)
-                        draw_disk(houseDrawPNG,HCenterX,HCenterY,2*radiusPx,HOUSECOLOR)
-                        draw_text_with_border(houseDrawPNG,TXTBORDERWIDTH,HCenterX+ (-.9)*radiusPx,HCenterY+(-.9)*radiusPx,pt_label,TXTFONT,TXTCOLOR,TXTBOLDCOLOR)
-                        
-                    houseImagePNG.save(imagePath(outputdir,"hshs",id,name,siteno,"png"),"PNG")
-                    houseImagePNG.save(imagePath(outputdir,"hshs",id,name,siteno,"jpg"),"JPEG")
+                        draw_disk(houseDraw,HCenterX,HCenterY,2*radiusPx,HOUSECOLOR)
+                        draw_text_with_border(houseDraw,TXTBORDERWIDTH,HCenterX+ (-.9)*radiusPx,HCenterY+(-.9)*radiusPx,pt_label,TXTFONT,TXTCOLOR,TXTBOLDCOLOR)
+                    houseImage.save(imagePath(outputdir,"hshs",id,name,siteno,"jpg"),"JPEG")
+                    if args.png:
+                        houseImage.save(imagePath(outputdir,"hshs",id,name,siteno,"png"),"PNG")
                     
 if __name__ == "__main__":
         main()
