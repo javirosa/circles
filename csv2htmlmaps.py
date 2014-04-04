@@ -18,7 +18,6 @@ import PIL.ImageDraw as ImageDraw
 import PIL.ImageFont as ImageFont
 import itertools
 
-
 #Modularize
 #sites
 #site
@@ -38,24 +37,20 @@ import itertools
 #http://grabz.it/api/python/
 #http://docs.seleniumhq.org/projects/webdriver/
 
-#Make ellipse draw transparent red ring
-#Extend image
 #Ideally each site, including house plots, should be done at the same time, instead of loading and saving twice.
-#Make a image of the same size with transparent background
 #Add color to image
-#blend?
+
 def signal_handler(signal,frame):
     sys.exit(1);
 signal.signal(signal.SIGINT,signal_handler)
 
-IMAGEMAGICKPATH = "C:\Program Files\ImageMagick-6.8.8-Q16\convert.exe"
 CIRCLERAD = 8 #meters
 RENDEROFFSETX = 8 #pixels
 RENDEROFFSETY = 8 #pixels
 
 BOUNDARYCOLOR = (255,0,0,256)
 XFRMRCOLOR=(255,255,0)
-HOUSECOLOR= 'rgb(255,0,0)' #(255,0,0)
+HOUSECOLOR= 'rgb(255,0,0)'
 TXTCOLOR = (255,255,255)
 TXTBOLDCOLOR = (0,0,0)
 TXTSITELABELCOLOR = (0,0,0)
@@ -73,10 +68,6 @@ CMDBLACKLIST = "\"\'"
 BLACKLIST = NTFSBLACKLIST + OSXBLACKLIST + DROPBOXBLACKLIST + CMDBLACKLIST + FATBLACKLIST
 BLACKLIST = "".join(set(BLACKLIST))
 OUTOFBOUNDSCOLR = "#4004"
-
-#TODO Convert these into lists so that we can later call convert in linux. Right now this causes errors when using POpen. Windows has errors when using POpen with shell=true
-IMAGEMAGICKARGS = " -extent 0x{0[withtextbottom]} " + "\"{0[inname]}\" \"{0[outname1]}\" "
-#w/2+strokewidth/2+r
 
 #For capturepage
 app = QtGui.QApplication(sys.argv)
@@ -213,8 +204,7 @@ def main():
     args.skip = args.skip.lower() =='true' 
     
     collectionDir = args.input + "."
-    dot = collectionDir.index(".")
-    collectionDir = collectionDir[0:dot]
+    collectionDir = collectionDir[0:collectionDir.index(".")]
     outputdir = os.path.join(args.outputdir,collectionDir)
     
     # TODO (should really test if its writeable too)
@@ -230,7 +220,7 @@ def main():
 
     #READ MASTER CSV FILE
     toLabel = []
-    with open(args.input, 'rUb') as f, open(os.path.join(outputdir,'listing.csv'),'w') as lst:
+    with open(args.input, 'rUb') as f:
         master = csv.reader(f)
         try:
             headers = master.next()
@@ -254,59 +244,16 @@ def main():
                 else:
                     pixels = int(args.pixels)
                 
-                # use the ID in the filename:
                 #outputprefix is the name of the raw file in directory of basename of the master list input csv
                 # TODO should actually use the same naming scheme as the other images. i.e. use the imagepath function
                 outputprefix = 'siteno[{0}]_id[{1}]_label[{2}]'.format(siteno,id,label)
-                outputhtml = '{0}.html'.format(outputprefix)
-                outputhtmlabs = os.path.abspath(os.path.join(outputdir,outputhtml))
-                        
-                with open(outputhtmlabs,'w') as out:
-                    print('<iframe width="{2}" height="{2}" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?f=q&amp;source=s_q&amp;hl=en&amp;geocode=&amp;q={0},{1}&amp;aq=&amp;sll={0},{1}&amp;sspn=0.002789,0.003664&amp;t=h&amp;ie=UTF8&amp;z={3}&amp;ll={0},{1}&amp;output=embed"></iframe>'.format(lat,long,pixels,args.level),file=out)
-                print('{0}'.format(outputhtml),file=lst)
-
                 rawMap = os.path.abspath(os.path.join(outputdir,'raw_{0}.png'.format(outputprefix)))
-                if (args.skip == 'False') or (not os.path.exists(rawMap)):
-                    print("Capturing: \'{0}\'".format(outputhtmlabs))
-                    capturePage(outputhtmlabs,rawMap)
-                toLabel.append((id,label,rawMap,lat,long,siteno,pixels,name))
+                toLabel.append((id,label,rawMap,lat,long,siteno,pixels,name,outputprefix))
         except csv.Error as e:
             sys.exit('Error in file %s, line %d: %s' % (args.input, reader.line_num, e))
-            
-        startToLabel = time.time()
-        timeToLabel = 60
-        doneLabel=0
-        for id,label,rawMap,lat,long,siteno,pixels,name in toLabel:
-            if os.path.exists(rawMap):
-                centerX,centerY,perimeterX = circleParms(args.radius,lat,pixels,args.level)
-                labeledImg2  = imagePath(outputdir,"lbld",id,name,siteno,"jpg")
-                if args.png:
-                    labeledImg2  = imagePath(outputdir,"lbld",id,name,siteno,"png")
-                magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'inname':rawMap,'outname1':labeledImg2,'withtextbottom':int(pixels)+256})
-
-                print("Boundary %s processing. %d minutes remaining for boundary processing."%(siteno,(len(toLabel)-doneLabel)*(timeToLabel)/60.0))
-                thread = subprocess.Popen(magiccall)
-                thread.wait()
-                timeToLabel = time.time()-startToLabel
-                startToLabel = time.time()
-                doneLabel=doneLabel+1
-
-        for id,label,rawMap,lat,long,siteno,pixels,name in toLabel:
-            if os.path.exists(rawMap):
-                labeledJPG  = imagePath(outputdir,"lbld",id,name,siteno,"jpg")
-                labeledPNG  = imagePath(outputdir,"lbld",id,name,siteno,"png")
-                labeledInput = labeledJPG
-                if args.png:
-                    labeledInput = labeledPNG
-                labelImagePNG = Image.open(labeledInput)
-                labelDrawPNG  = ImageDraw.Draw(labelImagePNG)
-                X,Y=0,int(pixels)+RENDEROFFSETY
-                draw_text_with_border(labelDrawPNG,0,X,Y,name,TXTSITEFONT,TXTSITELABELCOLOR,TXTSITELABELCOLOR)
-                if args.png:
-                    labelImagePNG.save(labeledPNG,"PNG")
-                labelImagePNG.save(labeledJPG,"JPEG")
-                              
-        #Plot house coordinates
+        
+        ptsHeader = None
+        siteNoDict = None
         if args.houses:
             #PLAN load houses
             with open(args.houses, 'rUb') as f:
@@ -321,10 +268,44 @@ def main():
                 siteNoDict = {}
                 for siteno,grp in siteNoGrps:
                     siteNoDict[siteno]=list(grp)
-                
+        
+        for id,label,rawMap,lat,long,siteno,pixels,name,outputprefix in toLabel:
+            outputhtml = os.path.abspath(os.path.join(outputdir,'{0}.html'.format(outputprefix)))
+            with open(outputhtml,'w') as out:
+                print('<iframe width="{2}" height="{2}" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?f=q&amp;source=s_q&amp;hl=en&amp;geocode=&amp;q={0},{1}&amp;aq=&amp;sll={0},{1}&amp;sspn=0.002789,0.003664&amp;t=h&amp;ie=UTF8&amp;z={3}&amp;ll={0},{1}&amp;output=embed"></iframe>'.format(lat,long,pixels,args.level),file=out)
+            if not (args.skip and os.path.exists(rawMap)):
+                print("Capturing: \'{0}\'".format(outputhtml))
+                capturePage(outputhtml,rawMap)
+        
+        startToLabel = time.time()        
+        timeToLabel = 60
+        doneLabel=0
+        for id,label,rawMap,lat,long,siteno,pixels,name,outputprefix in toLabel:
+            if os.path.exists(rawMap):
+                print("Boundary %s processing. %d minutes remaining for boundary processing."%(siteno,(len(toLabel)-doneLabel)*(timeToLabel)/60.0))
+                #Paint the town red
+                extendedImage = Image.open(rawMap)
+                boundSite = Image.new(extendedImage.mode,extendedImage.size,color=BOUNDARYCOLOR)
+                boundSite = Image.blend(boundSite,extendedImage,.90)
+                draw_visit_site(extendedImage,boundSite,RENDEROFFSETX,RENDEROFFSETY,args.radius,lat,pixels,args.level)
+                #extend image
+                toName = Image.new(extendedImage.mode,(extendedImage.size[0],extendedImage.size[1]+256),color='white')
+                toName.paste(boundSite,(0,0))
+                #Write the town name
+                X,Y=0,int(pixels)+RENDEROFFSETY
+                draw_text_with_border(ImageDraw.Draw(toName),0,X,Y,name,TXTSITEFONT,TXTSITELABELCOLOR,TXTSITELABELCOLOR)
+                if args.png:
+                    toName.save(imagePath(outputdir,"lbld",id,name,siteno,"png"),"PNG")
+                toName.save(imagePath(outputdir,"lbld",id,name,siteno,"jpg"),"JPEG")
+                timeToLabel = time.time()-startToLabel
+                startToLabel = time.time()
+                doneLabel=doneLabel+1
+                              
+        #Plot house coordinates        
+        if args.houses:        
                 #PLAN have each site have its house data
                 #PLAN have each site draw its house data onto the siteMap
-                for id,label,rawMap,lat,long,siteno,pixels,name in toLabel:
+                for id,label,rawMap,lat,long,siteno,pixels,name,outputprefix in toLabel:
                     sitePts = siteNoDict[siteno]
                     #load output img
                     labeledImagePath = imagePath(outputdir,"lbld",id,name,siteno,"jpg")
@@ -332,12 +313,7 @@ def main():
                         labeledImagePath = imagePath(outputdir,"lbld",id,name,siteno,"png")
                     labeledImage = Image.open(labeledImagePath)
                     
-                    #paint the town red
-                    boundSite = Image.new(labeledImage.mode,labeledImage.size,color=BOUNDARYCOLOR)
-                    boundSite = Image.blend(boundSite,labeledImage,.90)
-                    draw_visit_site(labeledImage,boundSite,RENDEROFFSETX,RENDEROFFSETY,args.radius,lat,pixels,args.level)
-
-                    houseDraw  = ImageDraw.Draw(boundSite)
+                    houseDraw  = ImageDraw.Draw(labeledImage)
                     radiusPx = metersToPixels(CIRCLERAD,lat,args.level)
                     centerX,centerY,_ = circleParms(args.radius,lat,pixels,args.level)
                     #Transformer location
@@ -353,9 +329,9 @@ def main():
                         latH,longH,HCenterX,HCenterY=house_parms(pt,ptsHeader,lat,long,centerX,centerY,args.level)
                         draw_disk(houseDraw,HCenterX,HCenterY,2*radiusPx,HOUSECOLOR)
                         draw_text_with_border(houseDraw,TXTBORDERWIDTH,HCenterX+ (-.9)*radiusPx,HCenterY+(-.9)*radiusPx,pt_label,TXTFONT,TXTCOLOR,TXTBOLDCOLOR)
-                    boundSite.save(imagePath(outputdir,"hshs",id,name,siteno,"jpg"),"JPEG")
+                    labeledImage.save(imagePath(outputdir,"hshs",id,name,siteno,"jpg"),"JPEG")
                     if args.png:
-                        boundSite.save(imagePath(outputdir,"hshs",id,name,siteno,"png"),"PNG")
+                        labeledImage.save(imagePath(outputdir,"hshs",id,name,siteno,"png"),"PNG")
                     
 if __name__ == "__main__":
         main()
