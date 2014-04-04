@@ -18,6 +18,7 @@ import PIL.ImageDraw as ImageDraw
 import PIL.ImageFont as ImageFont
 import itertools
 
+
 #Modularize
 #sites
 #site
@@ -40,7 +41,9 @@ import itertools
 #Make ellipse draw transparent red ring
 #Extend image
 #Ideally each site, including house plots, should be done at the same time, instead of loading and saving twice.
-
+#Make a image of the same size with transparent background
+#Add color to image
+#blend?
 def signal_handler(signal,frame):
     sys.exit(1);
 signal.signal(signal.SIGINT,signal_handler)
@@ -50,8 +53,9 @@ CIRCLERAD = 8 #meters
 RENDEROFFSETX = 8 #pixels
 RENDEROFFSETY = 8 #pixels
 
+BOUNDARYCOLOR = (255,0,0,256)
 XFRMRCOLOR=(255,255,0)
-HOUSECOLOR=(255,0,0)
+HOUSECOLOR= 'rgb(255,0,0)' #(255,0,0)
 TXTCOLOR = (255,255,255)
 TXTBOLDCOLOR = (0,0,0)
 TXTSITELABELCOLOR = (0,0,0)
@@ -71,9 +75,7 @@ BLACKLIST = "".join(set(BLACKLIST))
 OUTOFBOUNDSCOLR = "#4004"
 
 #TODO Convert these into lists so that we can later call convert in linux. Right now this causes errors when using POpen. Windows has errors when using POpen with shell=true
-IMTEXT = " -extent 0x{0[withtextbottom]} "
-IMCIRCLE = " -fill none -strokewidth {0[strokewidth]} -stroke #4004 -draw \"circle {0[centerX]},{0[centerY]} {0[perimeterX]},{0[centerY]}\" " 
-IMAGEMAGICKARGS = IMCIRCLE + IMTEXT + "\"{0[inname]}\" \"{0[outname1]}\" "
+IMAGEMAGICKARGS = " -extent 0x{0[withtextbottom]} " + "\"{0[inname]}\" \"{0[outname1]}\" "
 #w/2+strokewidth/2+r
 
 #For capturepage
@@ -125,6 +127,7 @@ def GPSToMapPixels(lat0,long0,lat1,long1,X0,Y0,level):
     return X0+globalXDiff,Y0+globalYDiff
     
 #NOTE pixels is reused for strokewidth and to get the center of the image
+#perimeterX is the right most X of the circle on the middle of the map.
 def circleParms(radius,lat,pixels,level):
     centerX = RENDEROFFSETX + pixels/2
     centerY = RENDEROFFSETY + pixels/2
@@ -180,6 +183,13 @@ def draw_text_with_border(draw_canvas,border_width,X,Y,label,txt_font,txt_color,
         draw_canvas.text((X+i,Y+j),label,fill=txt_bold_color,font=txt_font)
     draw_canvas.text((X,Y),label,fill=txt_color,font=txt_font)
 
+def draw_visit_site(srcSiteMap,targetSiteMap,offsetX,offsetY,radius,lat,pixels,level):
+    mask = Image.new('L',targetSiteMap.size,color=0)
+    maskCanvas = ImageDraw.Draw(mask)
+    maskDiameter = metersToPixels(radius,lat,level)*2
+    maskCanvas.ellipse((RENDEROFFSETX,RENDEROFFSETY,maskDiameter+RENDEROFFSETX,maskDiameter+RENDEROFFSETY),fill=256)
+    targetSiteMap.paste(srcSiteMap,(0,0),mask)
+    
 def main():
     #TODO use docopt
     parser = argparse.ArgumentParser(description='Script to take coordinates from a CSV input file and output a series of Google Maps HTML files centered on those coordinates')
@@ -272,7 +282,7 @@ def main():
                 labeledImg2  = imagePath(outputdir,"lbld",id,name,siteno,"jpg")
                 if args.png:
                     labeledImg2  = imagePath(outputdir,"lbld",id,name,siteno,"png")
-                magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'inname':rawMap,'outname1':labeledImg2,'strokewidth':int(pixels),'perimeterX':perimeterX,'centerX':centerX,"centerY":centerY,'mapbottom':int(pixels)+RENDEROFFSETY+192,'withtextbottom':int(pixels)+256})
+                magiccall = IMAGEMAGICKPATH + " " + IMAGEMAGICKARGS.format({'inname':rawMap,'outname1':labeledImg2,'withtextbottom':int(pixels)+256})
 
                 print("Boundary %s processing. %d minutes remaining for boundary processing."%(siteno,(len(toLabel)-doneLabel)*(timeToLabel)/60.0))
                 thread = subprocess.Popen(magiccall)
@@ -317,14 +327,19 @@ def main():
                 for id,label,rawMap,lat,long,siteno,pixels,name in toLabel:
                     sitePts = siteNoDict[siteno]
                     #load output img
-                    labeledImage = imagePath(outputdir,"lbld",id,name,siteno,"jpg")
+                    labeledImagePath = imagePath(outputdir,"lbld",id,name,siteno,"jpg")
                     if args.png:
-                        labeledImage = imagePath(outputdir,"lbld",id,name,siteno,"png")
-                    houseImage = Image.open(labeledImage)
-                    houseDraw  = ImageDraw.Draw(houseImage)
+                        labeledImagePath = imagePath(outputdir,"lbld",id,name,siteno,"png")
+                    labeledImage = Image.open(labeledImagePath)
+                    
+                    #paint the town red
+                    boundSite = Image.new(labeledImage.mode,labeledImage.size,color=BOUNDARYCOLOR)
+                    boundSite = Image.blend(boundSite,labeledImage,.90)
+                    draw_visit_site(labeledImage,boundSite,RENDEROFFSETX,RENDEROFFSETY,args.radius,lat,pixels,args.level)
+
+                    houseDraw  = ImageDraw.Draw(boundSite)
                     radiusPx = metersToPixels(CIRCLERAD,lat,args.level)
                     centerX,centerY,_ = circleParms(args.radius,lat,pixels,args.level)
-                    
                     #Transformer location
                     draw_disk(houseDraw,centerX,centerY,radiusPx,XFRMRCOLOR)  
                     #Plot housenames
@@ -338,9 +353,9 @@ def main():
                         latH,longH,HCenterX,HCenterY=house_parms(pt,ptsHeader,lat,long,centerX,centerY,args.level)
                         draw_disk(houseDraw,HCenterX,HCenterY,2*radiusPx,HOUSECOLOR)
                         draw_text_with_border(houseDraw,TXTBORDERWIDTH,HCenterX+ (-.9)*radiusPx,HCenterY+(-.9)*radiusPx,pt_label,TXTFONT,TXTCOLOR,TXTBOLDCOLOR)
-                    houseImage.save(imagePath(outputdir,"hshs",id,name,siteno,"jpg"),"JPEG")
+                    boundSite.save(imagePath(outputdir,"hshs",id,name,siteno,"jpg"),"JPEG")
                     if args.png:
-                        houseImage.save(imagePath(outputdir,"hshs",id,name,siteno,"png"),"PNG")
+                        boundSite.save(imagePath(outputdir,"hshs",id,name,siteno,"png"),"PNG")
                     
 if __name__ == "__main__":
         main()
