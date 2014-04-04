@@ -8,7 +8,6 @@ import csv
 import sys
 import math
 import subprocess
-import time
 from PyQt4 import QtCore, QtGui, QtWebKit
 import capty
 import signal
@@ -17,18 +16,16 @@ import PIL.Image as Image
 import PIL.ImageDraw as ImageDraw
 import PIL.ImageFont as ImageFont
 import itertools
-
+from CompletionTimer import CompletionTimer
 #Modularize
 #sites
 #site
 #house
-#time tracker
 #Have house plotter 
 #Site plotter which adds label and transformer
 
 #TODO
 #How are we trying to download
-#Color based on code (blue,red,orange)
 #Add more circles for overlap
 #Arrows to outside of circle
 
@@ -38,7 +35,7 @@ import itertools
 #http://docs.seleniumhq.org/projects/webdriver/
 
 #Ideally each site, including house plots, should be done at the same time, instead of loading and saving twice.
-#Add color to image
+#Color based on code (blue,red,orange)
 
 def signal_handler(signal,frame):
     sys.exit(1);
@@ -252,6 +249,7 @@ def main():
         except csv.Error as e:
             sys.exit('Error in file %s, line %d: %s' % (args.input, reader.line_num, e))
         
+        #Load house data
         ptsHeader = None
         siteNoDict = None
         if args.houses:
@@ -259,7 +257,6 @@ def main():
             with open(args.houses, 'rUb') as f:
                 housePts = csv.reader(f)
                 ptsHeader = housePts.next()
-                
                 #PLAN associate site with houses
                 #TODO why can't I just make the dict from siteNoGrps?
                 allPts = list(housePts)
@@ -269,7 +266,8 @@ def main():
                 for siteno,grp in siteNoGrps:
                     siteNoDict[siteno]=list(grp)
         
-        for id,label,rawMap,lat,long,siteno,pixels,name,outputprefix in toLabel:
+        #Download and save images from google maps
+        for _,_,rawMap,_,_,_,_,_,outputprefix in toLabel:
             outputhtml = os.path.abspath(os.path.join(outputdir,'{0}.html'.format(outputprefix)))
             with open(outputhtml,'w') as out:
                 print('<iframe width="{2}" height="{2}" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?f=q&amp;source=s_q&amp;hl=en&amp;geocode=&amp;q={0},{1}&amp;aq=&amp;sll={0},{1}&amp;sspn=0.002789,0.003664&amp;t=h&amp;ie=UTF8&amp;z={3}&amp;ll={0},{1}&amp;output=embed"></iframe>'.format(lat,long,pixels,args.level),file=out)
@@ -277,12 +275,10 @@ def main():
                 print("Capturing: \'{0}\'".format(outputhtml))
                 capturePage(outputhtml,rawMap)
         
-        startToLabel = time.time()        
-        timeToLabel = 60
-        doneLabel=0
-        for id,label,rawMap,lat,long,siteno,pixels,name,outputprefix in toLabel:
+        ct = CompletionTimer(units=len(toLabel))
+        for id,_,rawMap,lat,_,siteno,pixels,name,_ in toLabel:
             if os.path.exists(rawMap):
-                print("Boundary %s processing. %d minutes remaining for boundary processing."%(siteno,(len(toLabel)-doneLabel)*(timeToLabel)/60.0))
+                ct.startEvent()
                 #Paint the town red
                 extendedImage = Image.open(rawMap)
                 boundSite = Image.new(extendedImage.mode,extendedImage.size,color=BOUNDARYCOLOR)
@@ -297,15 +293,13 @@ def main():
                 if args.png:
                     toName.save(imagePath(outputdir,"lbld",id,name,siteno,"png"),"PNG")
                 toName.save(imagePath(outputdir,"lbld",id,name,siteno,"jpg"),"JPEG")
-                timeToLabel = time.time()-startToLabel
-                startToLabel = time.time()
-                doneLabel=doneLabel+1
-                              
+                ct.stopEvent()
+                print(ct)
         #Plot house coordinates        
         if args.houses:        
                 #PLAN have each site have its house data
                 #PLAN have each site draw its house data onto the siteMap
-                for id,label,rawMap,lat,long,siteno,pixels,name,outputprefix in toLabel:
+                for id,_,_,lat,long,siteno,pixels,name,_ in toLabel:
                     sitePts = siteNoDict[siteno]
                     #load output img
                     labeledImagePath = imagePath(outputdir,"lbld",id,name,siteno,"jpg")
@@ -334,4 +328,4 @@ def main():
                         labeledImage.save(imagePath(outputdir,"hshs",id,name,siteno,"png"),"PNG")
                     
 if __name__ == "__main__":
-        main()
+    main()
