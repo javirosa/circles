@@ -1,7 +1,7 @@
 import time
 #TODO add expected remaining functions.
 class CompletionTimer(object):
-    def __init__(self,initialDuration=60,units=1,eventName="",alpha=.3,reportStr="Event :{eventName}:. Estimated time taken :{lpfDuration}:. Estimated remaining :{estimate}:."):
+    def __init__(self,initialDuration=60,units=1,eventName="",alpha=.3,reportStr=":{eventName}:. Est. taken :{lpfDuration}:. Est. left :{estimate}:."):
         self.eventName = eventName
         self.start = None
         self.stop = None
@@ -12,8 +12,8 @@ class CompletionTimer(object):
         self.lpfDuration = initialDuration
         self.alpha = alpha
         self.reportStr = reportStr
-        self.durationFmt = "Event :%s: Estimated time taken :%0.1f: minutes."
-        self.estimateFmt = "Event :%s: Estimated time to completion :%0.1f: minutes."
+        self.durationFmt = ":%s: Est. taken :%0.0f: minutes."
+        self.estimateFmt = ":%s: Est. left :%0.0f: minutes."
         self.units = units
         self.estimate = self.units*self.lpfDuration/60
 
@@ -28,7 +28,7 @@ class CompletionTimer(object):
         self.duration = self.stop - self.start
         self.lpfDuration = self.lastDuration*(1-self.alpha) + self.duration*self.alpha
         self.units = self.units-1
-        self.estimate = self.units*self.lpfDuration/60.0
+        self.estimate = int(self.units*self.lpfDuration/60)
         
     def __str__(self):
         vals = dict(self.__dict__)

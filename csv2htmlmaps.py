@@ -28,14 +28,17 @@ from CompletionTimer import CompletionTimer
 #How are we trying to download
 #Add more circles for overlap
 #Arrows to outside of circle
+#look for color column
 
 #Need to replace capty
+#Glovis
+#WorldWind
+#MODIS
 #http://phantomjs.org/
 #http://grabz.it/api/python/
 #http://docs.seleniumhq.org/projects/webdriver/
 
 #Ideally each site, including house plots, should be done at the same time, instead of loading and saving twice.
-#Color based on code (blue,red,orange)
 
 def signal_handler(signal,frame):
     sys.exit(1);
@@ -48,6 +51,7 @@ RENDEROFFSETY = 8 #pixels
 BOUNDARYCOLOR = (255,0,0,256)
 XFRMRCOLOR=(255,255,0)
 HOUSECOLOR= 'rgb(255,0,0)'
+ELECHOUSECOLOR = 'rgb(0,255,255)'
 TXTCOLOR = (255,255,255)
 TXTBOLDCOLOR = (0,0,0)
 TXTSITELABELCOLOR = (0,0,0)
@@ -190,8 +194,10 @@ def main():
     parser.add_argument('-r','--radius',default=650,help='radius in meters of off limits circle.')
     parser.add_argument('-l','--level',default=19,help='google maps zoom level')
     parser.add_argument('-s','--skip',default='true',help='skip downloading unlabeled maps if already downloaded.')
+    parser.add_argument('-N','--norelabel',default='false',help='do not relabel the transformer sites.')
     parser.add_argument('-H','--houses',default=None,help='plot houses file.')
     parser.add_argument('-c','--png',default='false',help='Use pngs for all labeled sites and house plots instead of just for raw maps.')
+    parser.add_argument('-E','--ignoreEmpty',default='false',help='Skip updating household maps with no houses in housees file.')
 
     args = parser.parse_args()
     args.radius = int(args.radius)
@@ -199,6 +205,8 @@ def main():
     args.input = os.path.abspath(args.input)
     args.png = args.png.lower() =='true' 
     args.skip = args.skip.lower() =='true' 
+    args.norelabel = args.norelabel.lower() == 'true'
+    args.ignoreEmpty = args.ignoreEmpty.lower() == 'true'
     
     collectionDir = args.input + "."
     collectionDir = collectionDir[0:collectionDir.index(".")]
@@ -226,6 +234,7 @@ def main():
                 siteno = get_variable(row,headers,'siteno',"None")
                 label = get_variable(row,headers,'label',id)
                 name = get_variable(row,headers,'name',siteno)
+                name = siteno + " " + name
                 
                 lat,long = 0.0,0.0
                 try:
@@ -275,9 +284,9 @@ def main():
                 print("Capturing: \'{0}\'".format(outputhtml))
                 capturePage(outputhtml,rawMap)
         
-        ct = CompletionTimer(units=len(toLabel))
+        ct = CompletionTimer(units=len(toLabel),eventName="lbld")
         for id,_,rawMap,lat,_,siteno,pixels,name,_ in toLabel:
-            if os.path.exists(rawMap):
+            if os.path.exists(rawMap) and not args.norelabel:
                 ct.startEvent()
                 #Paint the town red
                 extendedImage = Image.open(rawMap)
@@ -299,8 +308,16 @@ def main():
         if args.houses:        
                 #PLAN have each site have its house data
                 #PLAN have each site draw its house data onto the siteMap
+                ct = CompletionTimer(eventName="hshs",units=len(toLabel))
                 for id,_,_,lat,long,siteno,pixels,name,_ in toLabel:
-                    sitePts = siteNoDict[siteno]
+                    if siteNoDict.has_key(siteno):
+                        sitePts = siteNoDict[siteno]
+                    else:
+                        print('Note: No houses to label for siteno: %s'%siteno) 
+                        if args.ignoreEmpty: 
+                            break
+                        sitePts = []
+                    ct.startEvent()
                     #load output img
                     labeledImagePath = imagePath(outputdir,"lbld",id,name,siteno,"jpg")
                     if args.png:
@@ -314,18 +331,38 @@ def main():
                     draw_disk(houseDraw,centerX,centerY,radiusPx,XFRMRCOLOR)  
                     #Plot housenames
                     for pt in sitePts:
-                        pt_label = get_point_label(pt,ptsHeader,"{first} {middle} {last} ({common})")
-                        latH,longH,HCenterX,HCenterY=house_parms(pt,ptsHeader,lat,long,centerX,centerY,args.level)
+                        if 'first' in ptsHeader :
+                            pt_label = get_point_label(pt,ptsHeader,"{first} {middle} {last} ({common})")
+                        else:
+                            pt_label = get_point_label(pt,ptsHeader,"{Name}")
+                        try: 
+                            latH,longH,HCenterX,HCenterY=house_parms(pt,ptsHeader,lat,long,centerX,centerY,args.level)
+                        except ValueError:
+                            print("House %s has invalid coordinates."%id)
+                            continue
+                        if get_point_label(pt,ptsHeader,"{electrified}") == '1':
+                            pt_label = pt_label + " [E]"
+                        else:
+                            pt_label = pt_label + " [U]"
                         draw_text_with_border(houseDraw,3,HCenterX+(1.1)*radiusPx,HCenterY +(-.9)*radiusPx,pt_label,TXTFONT,TXTCOLOR,TXTBOLDCOLOR)
                     #Plot second to ensure that numbers are above anything else
                     for pt in sitePts:
                         pt_label = get_point_label(pt,ptsHeader,"{hhid}")
-                        latH,longH,HCenterX,HCenterY=house_parms(pt,ptsHeader,lat,long,centerX,centerY,args.level)
-                        draw_disk(houseDraw,HCenterX,HCenterY,2*radiusPx,HOUSECOLOR)
+                        try:
+                            latH,longH,HCenterX,HCenterY=house_parms(pt,ptsHeader,lat,long,centerX,centerY,args.level)                        
+                        except ValueError:
+                            print("House %s in %s have invalid coordinates. Are the column names and format correct?"%(pt_label,siteno,lat,long))
+                            continue
+                        housecolor = HOUSECOLOR
+                        if get_point_label(pt,ptsHeader,"{electrified}") == '1':
+                            housecolor = ELECHOUSECOLOR
+                        draw_disk(houseDraw,HCenterX,HCenterY,2*radiusPx,housecolor)
                         draw_text_with_border(houseDraw,TXTBORDERWIDTH,HCenterX+ (-.9)*radiusPx,HCenterY+(-.9)*radiusPx,pt_label,TXTFONT,TXTCOLOR,TXTBOLDCOLOR)
                     labeledImage.save(imagePath(outputdir,"hshs",id,name,siteno,"jpg"),"JPEG")
                     if args.png:
                         labeledImage.save(imagePath(outputdir,"hshs",id,name,siteno,"png"),"PNG")
+                    ct.stopEvent()
+                    print(ct)
                     
 if __name__ == "__main__":
     main()
