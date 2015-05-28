@@ -269,6 +269,7 @@ def main():
                 #PLAN associate site with houses
                 #TODO why can't I just make the dict from siteNoGrps?
                 allPts = list(housePts)
+                print(ptsHeader)
                 allPts.sort(key=lambda x:x[ptsHeader.index('siteno')]) 
                 siteNoGrps=itertools.groupby(allPts, lambda x: x[ptsHeader.index('siteno')])
                 siteNoDict = {}
@@ -315,7 +316,7 @@ def main():
                     else:
                         print('Note: No houses to label for siteno: %s'%siteno) 
                         if args.ignoreEmpty: 
-                            break
+                            continue
                         sitePts = []
                     ct.startEvent()
                     #load output img
@@ -340,10 +341,10 @@ def main():
                         except ValueError:
                             print("House %s has invalid coordinates."%id)
                             continue
-                        if get_point_label(pt,ptsHeader,"{electrified}") == '1':
-                            pt_label = pt_label + " [E]"
+                        if get_point_label(pt,ptsHeader,"{need_design}") == '1':
+                            pt_label = pt_label + " [D]"
                         else:
-                            pt_label = pt_label + " [U]"
+                            pt_label = pt_label + " [N]"
                         draw_text_with_border(houseDraw,3,HCenterX+(1.1)*radiusPx,HCenterY +(-.9)*radiusPx,pt_label,TXTFONT,TXTCOLOR,TXTBOLDCOLOR)
                     #Plot second to ensure that numbers are above anything else
                     for pt in sitePts:
@@ -351,10 +352,10 @@ def main():
                         try:
                             latH,longH,HCenterX,HCenterY=house_parms(pt,ptsHeader,lat,long,centerX,centerY,args.level)                        
                         except ValueError:
-                            print("House %s in %s have invalid coordinates. Are the column names and format correct?"%(pt_label,siteno,lat,long))
+                            print("House %s in %s have invalid coordinates. Are the column names and format correct?"%(pt_label,siteno))
                             continue
                         housecolor = HOUSECOLOR
-                        if get_point_label(pt,ptsHeader,"{electrified}") == '1':
+                        if get_point_label(pt,ptsHeader,"{need_design}") == '1':
                             housecolor = ELECHOUSECOLOR
                         draw_disk(houseDraw,HCenterX,HCenterY,2*radiusPx,housecolor)
                         draw_text_with_border(houseDraw,TXTBORDERWIDTH,HCenterX+ (-.9)*radiusPx,HCenterY+(-.9)*radiusPx,pt_label,TXTFONT,TXTCOLOR,TXTBOLDCOLOR)
